@@ -134,7 +134,7 @@ function ExercisePageInner() {
   return (
     <div className="min-h-screen bg-[#f8f9ff] px-6 pb-16">
       {/* Header */}
-      <div className="py-6 text-center">
+      <div className="py-6">
         <h1 className="text-[32px] font-bold text-[#101c2a] leading-10">운동 시작</h1>
         <p className="text-sm text-[#42484a] mt-1">AI가 내 자세·증상·임상 자료를 분석해 맞춤 운동을 추천합니다.</p>
       </div>
