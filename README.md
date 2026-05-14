@@ -17,7 +17,7 @@
 
 **Frontend**: Next.js 15, TypeScript, TailwindCSS, TensorFlow.js (MoveNet), Socket.io-client  
 **Backend**: FastAPI, Python 3.11+, ChromaDB (RAG), Google Calendar API  
-**LLM**: Upstage Solar (기본) / OpenAI / Anthropic Claude / Ollama (로컬) — `.env`로 전환 가능  
+**LLM**: Upstage Solar API (solar-pro, solar-embedding-1-large)  
 **DB**: SQLite
 
 ## 빠른 시작
@@ -27,33 +27,14 @@
 `backend/.env` 파일 생성:
 
 ```env
-# LLM 제공자 선택 (기본: upstage)
-LLM_PROVIDER=upstage        # upstage | openai | anthropic | ollama
-EMBED_PROVIDER=upstage      # upstage | openai | local
-
-# 선택한 제공자의 API 키만 입력
 UPSTAGE_API_KEY=up_xxxxxxxxxxxxxxxx
-OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxx
-ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxxxxx
 
 # Google Calendar (선택)
 GOOGLE_CLIENT_ID=your_client_id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=your_secret
 
-# 기타
 FRONTEND_URL=http://localhost:3000
 ```
-
-LLM 제공자별 기본 모델:
-
-| LLM_PROVIDER | 기본 모델 | API 키 필요 |
-|---|---|---|
-| `upstage` | solar-pro | UPSTAGE_API_KEY |
-| `openai` | gpt-4o-mini | OPENAI_API_KEY |
-| `anthropic` | claude-haiku-4-5 | ANTHROPIC_API_KEY |
-| `ollama` | llama3.2 | 불필요 (로컬 실행) |
-
-`LLM_MODEL` 환경 변수로 모델을 직접 지정할 수도 있습니다.
 
 ### 2. 설치 및 실행
 
