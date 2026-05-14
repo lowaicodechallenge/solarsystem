@@ -21,7 +21,7 @@ export default function Sidebar() {
           >
             shield_with_heart
           </span>
-          <span className="font-bold text-lg text-[#101c2a]">FitAI</span>
+          <span className="font-bold text-lg text-[#101c2a]">솔메이트</span>
         </div>
         <p className="text-xs text-[#42484a]">AI 피트니스 코치</p>
       </div>
