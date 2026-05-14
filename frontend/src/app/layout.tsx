@@ -5,7 +5,7 @@ import Sidebar from "@/components/Sidebar";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "FitAI - AI 피트니스 코치",
+  title: "솔메이트 - AI 피트니스 코치",
   description: "웹캠 자세 분석으로 나만의 AI 홈트 코치",
 };
 
