@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useEffect, useState, useCallback } from "react";
 import { getScoreColor } from "@/lib/utils";
-import type { Keypoint } from "@tensorflow-models/pose-detection";
+import type { Keypoint } from "@/lib/poseAnalysis";
 
 // Normalized skeleton keyframe positions [x, y] in 0..1 space
 // Each keyframe is one snapshot of the coach's pose

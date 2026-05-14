@@ -139,3 +139,68 @@ async def generate_workout_routine(
         "cool_down": ["스트레칭 5분"],
         "personalized_note": "오늘도 수고하셨습니다!",
     }
+
+
+async def analyze_current_state(
+    posture_issues: list[str],
+    front_score: float,
+    side_score: float,
+    symptoms: str,
+    doc_text: str,
+    rag_exercises: list[dict],
+) -> dict:
+    system_prompt = """당신은 전문 물리치료사이자 개인 트레이너입니다.
+사용자의 자세 분석 결과, 증상, 임상 자료를 종합하여 현재 신체 상태를 평가하고 적합한 운동을 추천합니다.
+반드시 한국어로 답변하세요."""
+
+    issues_text = "\n".join([f"- {i}" for i in posture_issues]) if posture_issues else "- 없음"
+    doc_section = f"\n\n임상 자료 내용:\n{doc_text[:1500]}" if doc_text else ""
+    exercises_text = "\n".join([f"- {ex['name']}: {ex['description']}" for ex in rag_exercises[:4]])
+
+    user_message = f"""다음 정보를 바탕으로 사용자의 현재 신체 상태를 분석하고 운동을 추천해주세요.
+
+## 자세 분석 결과
+정면 점수: {front_score:.0f}/100
+측면 점수: {side_score:.0f}/100
+발견된 자세 문제:
+{issues_text}
+
+## 증상/불편사항
+{symptoms if symptoms else "없음"}
+{doc_section}
+
+## 추천 가능한 운동
+{exercises_text}
+
+반드시 아래 JSON 형식으로만 응답하세요:
+{{
+  "state_summary": "현재 신체 상태 요약 2~3문장",
+  "main_concerns": ["주요 우려사항1", "주요 우려사항2"],
+  "risk_areas": ["주의 부위1"],
+  "recommendation_note": "운동 추천 이유 1~2문장",
+  "exercise_reasons": {{
+    "운동명": "이 운동을 추천하는 이유 (1문장)"
+  }}
+}}"""
+
+    try:
+        result = await chat(
+            [{"role": "user", "content": user_message}],
+            system_prompt=system_prompt,
+            temperature=0.4,
+            max_tokens=1200,
+        )
+        start = result.find("{")
+        end = result.rfind("}") + 1
+        if start != -1 and end > start:
+            return json.loads(result[start:end])
+    except Exception:
+        pass
+
+    return {
+        "state_summary": "자세 분석 결과를 바탕으로 맞춤 운동을 추천해드립니다.",
+        "main_concerns": posture_issues[:2] if posture_issues else ["자세 데이터가 없습니다"],
+        "risk_areas": [],
+        "recommendation_note": "아래 운동들을 통해 자세를 교정하고 건강을 개선하세요.",
+        "exercise_reasons": {},
+    }
