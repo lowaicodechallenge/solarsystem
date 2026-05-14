@@ -4,16 +4,18 @@ import { usePoseDetection } from "@/hooks/usePoseDetection";
 import { getScoreColor, getScoreLabel, formatDuration } from "@/lib/utils";
 import { api } from "@/lib/api";
 
-import type { Keypoint } from "@tensorflow-models/pose-detection";
+import type { Keypoint } from "@/lib/poseAnalysis";
 
 type Props = {
   exercise: string;
   userId: string;
   onAnalysis?: (data: { score: number; issues: string[]; signature: number[]; keypoints: Keypoint[] }) => void;
   battleMode?: boolean;
+  autoStart?: boolean;
+  hideFeedback?: boolean;
 };
 
-export default function PoseDetector({ exercise, userId, onAnalysis, battleMode }: Props) {
+export default function PoseDetector({ exercise, userId, onAnalysis, battleMode, autoStart, hideFeedback }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [active, setActive] = useState(false);
@@ -22,6 +24,7 @@ export default function PoseDetector({ exercise, userId, onAnalysis, battleMode 
   const [scores, setScores] = useState<number[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval>>(null);
   const analyzeThrottle = useRef(0);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const pose = usePoseDetection(videoRef, canvasRef, exercise, active);
 
@@ -72,6 +75,23 @@ export default function PoseDetector({ exercise, userId, onAnalysis, battleMode 
     };
   }, [active]);
 
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if (autoStart && !autoStarted.current && !active && !loading) {
+      autoStarted.current = true;
+      startWorkout();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart]);
+
+  // Stop webcam on unmount (page navigation)
+  useEffect(() => {
+    return () => {
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    };
+  }, []);
+
   const startWorkout = useCallback(async () => {
     setLoading(true);
     try {
@@ -79,6 +99,7 @@ export default function PoseDetector({ exercise, userId, onAnalysis, battleMode 
         video: { width: 640, height: 480, facingMode: "user" },
       });
       if (videoRef.current) {
+        streamRef.current = stream;
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
       }
@@ -93,8 +114,8 @@ export default function PoseDetector({ exercise, userId, onAnalysis, battleMode 
 
   const stopWorkout = useCallback(async () => {
     setActive(false);
-    const stream = videoRef.current?.srcObject as MediaStream;
-    stream?.getTracks().forEach((t) => t.stop());
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
 
     if (scores.length > 0 && elapsed > 5) {
@@ -157,12 +178,14 @@ export default function PoseDetector({ exercise, userId, onAnalysis, battleMode 
               <span className="text-gray-400">시간 </span>
               <span className="text-white font-mono font-bold">{formatDuration(elapsed)}</span>
             </div>
-            <div className="glass-card rounded-lg px-3 py-1.5 text-sm">
-              <span className="text-gray-400">평균 </span>
-              <span className="font-bold" style={{ color: getScoreColor(avgScore) }}>
-                {avgScore.toFixed(0)}점
-              </span>
-            </div>
+            {!hideFeedback && (
+              <div className="glass-card rounded-lg px-3 py-1.5 text-sm">
+                <span className="text-gray-400">평균 </span>
+                <span className="font-bold" style={{ color: getScoreColor(avgScore) }}>
+                  {avgScore.toFixed(0)}점
+                </span>
+              </div>
+            )}
           </div>
         )}
 
@@ -194,7 +217,7 @@ export default function PoseDetector({ exercise, userId, onAnalysis, battleMode 
       </div>
 
       {/* Score Ring + Details */}
-      {active && (
+      {active && !hideFeedback && (
         <div className="glass-card rounded-2xl p-4 flex items-center gap-6">
           {/* SVG Score Ring */}
           <div className="relative flex-shrink-0">

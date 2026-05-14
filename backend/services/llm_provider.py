@@ -23,6 +23,7 @@ UPSTAGE_API_KEY   = os.getenv("UPSTAGE_API_KEY",   "")
 OPENAI_API_KEY    = os.getenv("OPENAI_API_KEY",    "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 OLLAMA_BASE_URL   = os.getenv("OLLAMA_BASE_URL",   "http://localhost:11434")
+OPENAI_BASE_URL   = os.getenv("OPENAI_BASE_URL",   "https://api.openai.com/v1")
 
 LLM_MODEL = os.getenv("LLM_MODEL", "")  # override per-provider default if set
 
@@ -94,7 +95,7 @@ async def _openai_chat(messages: list[dict], temperature: float, max_tokens: int
     model = LLM_MODEL or "gpt-4o-mini"
     async with httpx.AsyncClient(timeout=60.0) as client:
         r = await client.post(
-            "https://api.openai.com/v1/chat/completions",
+            f"{OPENAI_BASE_URL}/chat/completions",
             headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
             json={"model": model, "messages": messages, "temperature": temperature, "max_tokens": max_tokens},
         )
@@ -106,7 +107,7 @@ async def _openai_embed(texts: list[str]) -> list[list[float]]:
     model = LLM_MODEL or "text-embedding-3-small"
     async with httpx.AsyncClient(timeout=30.0) as client:
         r = await client.post(
-            "https://api.openai.com/v1/embeddings",
+            f"{OPENAI_BASE_URL}/embeddings",
             headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
             json={"model": model, "input": texts},
         )
