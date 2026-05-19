@@ -1,3 +1,4 @@
+import asyncio
 import os
 import httpx
 from fastapi import APIRouter, Depends, UploadFile, File
@@ -6,7 +7,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from database import get_db, WorkoutSession, User
-from services.upstage_service import generate_workout_routine, analyze_current_state
+from services.nfa_video_service import recommend_nfa_videos
+from services.upstage_service import (
+    generate_workout_routine,
+    analyze_current_state,
+    parse_document,
+    classify_document,
+    extract_health_info,
+    remove_pii,
+    remove_pii_text,
+    apply_risk_tags,
+)
 from services.rag_service import search_exercises
 
 router = APIRouter(prefix="/api/workout", tags=["workout"])
@@ -18,6 +29,18 @@ class RoutineRequest(BaseModel):
     posture_issues: list[str] = []
 
 
+class NFAVideoRequest(BaseModel):
+    age: int = 30
+    goal: str = ""
+    pain_area: list[str] = []
+    place: str = "home"
+    level: str = "beginner"
+    available_time_min: int = 15
+    health_info: dict = {}
+    risk_tags: list[str] = []
+    max_results: int = 8
+
+
 class RecommendRequest(BaseModel):
     user_id: str
     posture_issues: list[str] = []
@@ -25,6 +48,8 @@ class RecommendRequest(BaseModel):
     side_score: float = 0
     symptoms: str = ""
     doc_text: str = ""
+    health_info: dict = {}
+    risk_tags: list[str] = []
 
 
 @router.post("/routine")
@@ -83,6 +108,8 @@ async def recommend_exercises(req: RecommendRequest, db: AsyncSession = Depends(
         symptoms=symptoms,
         doc_text=req.doc_text,
         rag_exercises=rag_exercises,
+        health_info=req.health_info,
+        risk_tags=req.risk_tags,
     )
 
     return {
@@ -104,23 +131,86 @@ async def recommend_exercises(req: RecommendRequest, db: AsyncSession = Depends(
 
 @router.post("/ocr")
 async def ocr_document(file: UploadFile = File(...)):
-    """Upstage Document Parse로 파일에서 텍스트 추출."""
-    upstage_key = os.getenv("UPSTAGE_API_KEY", "")
-    if not upstage_key:
-        return {"text": ""}
-
+    """Document Parse: 파일에서 텍스트 추출 (단순 OCR용)"""
     content = await file.read()
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        r = await client.post(
-            "https://api.upstage.ai/v1/document-ai/document-parse",
-            headers={"Authorization": f"Bearer {upstage_key}"},
-            files={"document": (file.filename, content, file.content_type)},
-        )
-        if r.status_code != 200:
-            return {"text": ""}
-        data = r.json()
-        text = data.get("content", {}).get("text", "")
-        return {"text": text}
+    result = await parse_document(
+        content,
+        file.filename or "document",
+        file.content_type or "application/octet-stream",
+    )
+    return {"text": result["text"]}
+
+
+@router.post("/process-document")
+async def process_document(file: UploadFile = File(...)):
+    """문서 전처리 풀파이프라인: Classify → Parse + Extract → PII 제거 → 위험 태그"""
+    content = await file.read()
+    filename = file.filename or "document"
+    content_type = file.content_type or "application/octet-stream"
+
+    # Step 1: 문서 유형 분류
+    category = await classify_document(content, content_type)
+
+    # Step 2: Parse + Extract 병렬 실행 (둘 다 원본 파일 사용)
+    parse_result, health_info = await asyncio.gather(
+        parse_document(content, filename, content_type),
+        extract_health_info(content, content_type, category),
+    )
+
+    # Step 3: PII 제거 + 위험 태그 변환
+    health_info = remove_pii(health_info)
+    parsed_text = remove_pii_text(parse_result["text"])
+    risk_tags = apply_risk_tags(health_info)
+
+    return {
+        "document_category": category,
+        "parsed_text": parsed_text,
+        "page_count": parse_result["page_count"],
+        "health_info": health_info,
+        "risk_tags": risk_tags,
+    }
+
+
+@router.get("/nfa-test")
+async def nfa_test():
+    """NFA API 직접 테스트 — 브라우저에서 /api/workout/nfa-test 열기"""
+    import httpx, os, xml.etree.ElementTree as ET
+    from services.nfa_video_service import NFA_BASE_URL, OP_MUSCULOSKELETAL
+    key = os.getenv("NFA_API_KEY", "KEY_NOT_SET")
+    url = f"{NFA_BASE_URL}/{OP_MUSCULOSKELETAL}"
+    params = {"serviceKey": key, "pageNo": 1, "numOfRows": 3, "resultType": "XML"}
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            r = await client.get(url, params=params)
+        root = ET.fromstring(r.content)
+        result_code = root.findtext("header/resultCode", "")
+        total = root.findtext("body/totalCount", "0")
+        items = [{child.tag: child.text for child in item}
+                 for item in root.findall("body/items/item")]
+        return {"http_status": r.status_code, "result_code": result_code,
+                "total_count": total, "sample_items": items[:2]}
+    except Exception as e:
+        return {"error": str(e), "key_length": len(key)}
+
+
+@router.post("/nfa-videos")
+async def get_nfa_videos(req: NFAVideoRequest):
+    """국민체력100 동영상 API 기반 맞춤 영상 추천"""
+    print(f"[NFA] endpoint called. pain_area={req.pain_area}, level={req.level}", flush=True)
+    videos = await recommend_nfa_videos(
+        user_context={
+            "age":                req.age,
+            "goal":               req.goal,
+            "pain_area":          req.pain_area,
+            "place":              req.place,
+            "level":              req.level,
+            "available_time_min": req.available_time_min,
+        },
+        health_info=req.health_info,
+        risk_tags=req.risk_tags,
+        max_results=req.max_results,
+    )
+    return {"videos": videos, "count": len(videos)}
 
 
 @router.get("/videos")

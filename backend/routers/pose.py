@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -65,8 +65,8 @@ async def save_session(
     exercise_type: str,
     duration: int,
     avg_score: float,
-    pose_signature: list[float],
-    corrections: list[str],
+    pose_signature: list[float] = Query(default=[]),
+    corrections: list[str] = Query(default=[]),
     db: AsyncSession = Depends(get_db),
 ):
     session = WorkoutSession(

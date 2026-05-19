@@ -5,6 +5,7 @@ export const EXERCISES = [
   { id: "pushup", name: "푸시업", emoji: "💪" },
   { id: "plank", name: "플랭크", emoji: "🏋️" },
   { id: "stretch", name: "스트레칭", emoji: "🧘" },
+  { id: "posture_scan", name: "자세 분석", emoji: "🧍" },
 ];
 
 export function getScoreColor(score: number): string {

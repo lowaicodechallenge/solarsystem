@@ -3,7 +3,8 @@ import { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import Link from "next/link";
 import { usePoseDetection } from "@/hooks/usePoseDetection";
 import { analyzePosture } from "@/lib/poseAnalysis";
-import { getScoreColor, getScoreLabel } from "@/lib/utils";
+import { getScoreColor, getScoreLabel, USER_ID } from "@/lib/utils";
+import { api } from "@/lib/api";
 
 type ScanStep = "preview" | "countdown_front" | "countdown_side" | "done";
 
@@ -30,6 +31,13 @@ function ScanPageInner() {
   // keypoints를 ref로 유지 — countdown effect의 dependency에서 제외하기 위해
   const keypointsRef = useRef(pose.keypoints);
   useEffect(() => { keypointsRef.current = pose.keypoints; }, [pose.keypoints]);
+
+  // 최근 1.5초(≈45프레임 @ 30fps) 점수 버퍼
+  const scoresBufferRef = useRef<number[]>([]);
+  useEffect(() => {
+    if (!pose.isDetecting) return;
+    scoresBufferRef.current = [...scoresBufferRef.current, pose.score].slice(-45);
+  }, [pose.score, pose.isDetecting]);
 
   // Auto-start webcam on mount
   const startCamera = useCallback(async () => {
@@ -68,8 +76,13 @@ function ScanPageInner() {
     if (step !== "countdown_front" && step !== "countdown_side") return;
 
     if (countdown <= 0) {
-      const analysis = analyzePosture(keypointsRef.current);
-      const result: CaptureResult = { score: analysis.score, issues: analysis.issues };
+      const analysis = analyzePosture(keypointsRef.current, step === "countdown_side");
+      const buf = scoresBufferRef.current;
+      const avgScore = buf.length > 0
+        ? Math.round(buf.reduce((a, b) => a + b, 0) / buf.length)
+        : analysis.score;
+      scoresBufferRef.current = [];
+      const result: CaptureResult = { score: avgScore, issues: analysis.issues };
 
       if (step === "countdown_front") {
         frontRef.current = result;
@@ -84,6 +97,18 @@ function ScanPageInner() {
           "fitai_posture_analysis",
           JSON.stringify({ date: dateKST, ...combined })
         );
+
+        // 백엔드 DB에 세션 저장 (기록 차트용)
+        const frontScore = frontRef.current?.score ?? result.score;
+        const combinedScore = Math.round((frontScore + result.score) / 2);
+        const params = new URLSearchParams();
+        params.set("user_id", USER_ID);
+        params.set("exercise_type", "posture_scan");
+        params.set("duration", "24");
+        params.set("avg_score", String(combinedScore));
+        result.issues.forEach((i) => params.append("corrections", i.message));
+        api.savePoseSession(params).catch(() => {});
+
         stopCamera();
         setStep("done");
       }

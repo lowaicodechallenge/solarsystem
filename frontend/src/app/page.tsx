@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { api, type ProcessDocumentResult } from "@/lib/api";
 import { EXERCISES, getScoreColor, getScoreLabel, USER_ID } from "@/lib/utils";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -19,15 +19,48 @@ type ScheduledWorkout = {
   scheduled_time: string;
 };
 
+type GCalEvent = {
+  id: string;
+  summary: string;
+  start: { dateTime?: string; date?: string };
+};
+
 export default function Home() {
   const [history, setHistory] = useState<Session[]>([]);
   const [upcoming, setUpcoming] = useState<ScheduledWorkout[]>([]);
+  const [gcalEvents, setGcalEvents] = useState<GCalEvent[]>([]);
+  const [gcalConnected, setGcalConnected] = useState(false);
+  const [gcalLastWorkout, setGcalLastWorkout] = useState<GCalEvent | null>(null);
+  const [gcalTotalCount, setGcalTotalCount] = useState(0);
+  const [postureAnalysis, setPostureAnalysis] = useState<{
+    date: string;
+    front: { score: number } | null;
+    side: { score: number } | null;
+  } | null>(null);
   const [symptoms, setSymptoms] = useState("");
   const [symptomsInput, setSymptomsInput] = useState("");
   const [savingSymptoms, setSavingSymptoms] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [docResults, setDocResults] = useState<ProcessDocumentResult[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const CATEGORY_LABELS: Record<string, string> = {
+    inbody: "인바디",
+    national_fitness_100: "국민체력100",
+    rehabilitation_guide: "재활치료지",
+    health_checkup: "건강검진표",
+    other: "기타",
+  };
+
+  const RISK_TAG_LABELS: Record<string, string> = {
+    avoid_jump: "점프 금지",
+    avoid_high_intensity: "고강도 금지",
+    avoid_spinal_flexion_load: "척추 굴곡 부하 금지",
+    avoid_knee_stress: "무릎 부하 금지",
+    low_intensity_only: "저강도만 가능",
+    rehabilitation_phase: "재활 단계",
+  };
 
   const handleFiles = (files: FileList | null) => {
     if (!files) return;
@@ -41,8 +74,49 @@ export default function Home() {
     api.getPoseHistory(USER_ID).then((res) => setHistory(Array.isArray(res) ? res : [])).catch(() => {});
     api.getUpcoming(USER_ID).then((res) => setUpcoming(Array.isArray(res) ? res : [])).catch(() => {});
 
+    // Google Calendar 연동 시 gcal_access_token으로 직접 일정 조회
+    const gcalToken = localStorage.getItem("gcal_access_token");
+    if (gcalToken) {
+      setGcalConnected(true);
+      const timeMin = encodeURIComponent(new Date().toISOString());
+      fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${timeMin}&maxResults=5&orderBy=startTime&singleEvents=true&q=${encodeURIComponent("솔메이트")}`,
+        { headers: { Authorization: `Bearer ${gcalToken}` } }
+      )
+        .then((r) => {
+          if (r.status === 401) {
+            localStorage.removeItem("gcal_access_token");
+            setGcalConnected(false);
+            return { items: [] };
+          }
+          return r.json();
+        })
+        .then((data) => setGcalEvents(data.items ?? []))
+        .catch(() => {});
+
+      // 과거 이벤트: 최근 1년치 조회 → 가장 최근 1개 + 총 횟수
+      const oneYearAgo = encodeURIComponent(new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString());
+      const now = encodeURIComponent(new Date().toISOString());
+      fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${oneYearAgo}&timeMax=${now}&maxResults=100&orderBy=startTime&singleEvents=true&q=${encodeURIComponent("솔메이트")}`,
+        { headers: { Authorization: `Bearer ${gcalToken}` } }
+      )
+        .then((r) => (r.status === 401 ? { items: [] } : r.json()))
+        .then((data) => {
+          const items: GCalEvent[] = data.items ?? [];
+          setGcalTotalCount(items.length);
+          setGcalLastWorkout(items[items.length - 1] ?? null);
+        })
+        .catch(() => {});
+    }
+
     const saved = localStorage.getItem("fitai_symptoms");
     if (saved) { setSymptoms(saved); setSymptomsInput(saved); }
+
+    try {
+      const raw = localStorage.getItem("fitai_posture_analysis");
+      if (raw) setPostureAnalysis(JSON.parse(raw));
+    } catch {}
 
     if (typeof Notification !== "undefined" && Notification.permission === "default") {
       Notification.requestPermission();
@@ -54,6 +128,30 @@ export default function Home() {
     await api.updateSymptoms(USER_ID, symptomsInput).catch(() => {});
     localStorage.setItem("fitai_symptoms", symptomsInput);
     setSymptoms(symptomsInput);
+
+    if (uploadedFiles.length > 0) {
+      const results: ProcessDocumentResult[] = [];
+      for (const file of uploadedFiles) {
+        try {
+          const result = await api.processDocument(file);
+          results.push(result);
+          localStorage.setItem("fitai_last_document", JSON.stringify(result));
+        } catch {}
+      }
+      // 운동 시작 페이지에서 사용할 수 있도록 배열로 저장 (최대 10개 유지)
+      try {
+        const existing: ProcessDocumentResult[] = JSON.parse(
+          localStorage.getItem("fitai_health_documents") ?? "[]"
+        );
+        localStorage.setItem(
+          "fitai_health_documents",
+          JSON.stringify([...existing, ...results].slice(-10))
+        );
+      } catch {}
+      setDocResults(results);
+      setUploadedFiles([]);
+    }
+
     setSavingSymptoms(false);
   };
 
@@ -218,9 +316,44 @@ export default function Home() {
               disabled={savingSymptoms}
               className="w-full bg-[#2f628c] text-white px-4 py-2.5 rounded-lg text-xs font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5 disabled:opacity-50 uppercase tracking-wider"
             >
-              <span className="material-symbols-outlined" style={{ fontSize: "16px" }}>save</span>
-              {savingSymptoms ? "저장 중..." : "SAVE DATA"}
+              <span className="material-symbols-outlined" style={{ fontSize: "16px" }}>
+                {savingSymptoms ? "hourglass_top" : "save"}
+              </span>
+              {savingSymptoms
+                ? uploadedFiles.length > 0 ? "문서 분석 중..." : "저장 중..."
+                : "SAVE DATA"}
             </button>
+
+            {/* 문서 분석 결과 */}
+            {docResults.length > 0 && (
+              <div className="flex flex-col gap-2 mt-1">
+                {docResults.map((r, i) => (
+                  <div key={i} className="bg-[#eff4ff] border border-[#c1c7c9] rounded-lg px-3 py-2.5 text-xs">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="font-semibold text-[#101c2a]">
+                        {CATEGORY_LABELS[r.document_category] ?? r.document_category}
+                      </span>
+                      <span className="text-[#2f628c] text-[10px] uppercase tracking-wider">분석 완료</span>
+                    </div>
+                    {r.risk_tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {r.risk_tags.map((tag) => (
+                          <span key={tag} className="px-1.5 py-0.5 bg-[#ffdad6] text-[#93000a] rounded-full text-[10px]">
+                            {RISK_TAG_LABELS[tag] ?? tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+                <Link
+                  href="/exercise"
+                  className="text-center text-xs text-[#2f628c] hover:underline"
+                >
+                  운동 추천 받으러 가기 →
+                </Link>
+              </div>
+            )}
           </div>
         </div>
 
@@ -272,24 +405,59 @@ export default function Home() {
           <h3 className="text-xs text-[#9ecefd] tracking-widest uppercase mb-3 relative z-10">
             LAST ANALYSIS
           </h3>
-          <div className="relative z-10 mb-2">
-            <span className="text-7xl font-bold text-white leading-none">
-              {lastSession ? Math.round(lastSession.avg_score) : "--"}
-            </span>
-            <span className="text-2xl text-[#9ecefd]">/100</span>
-          </div>
-          <div className="bg-[#9ecefd]/20 px-4 py-1 rounded-full relative z-10 mb-3">
-            <span className="text-xs text-[#9ecefd] uppercase tracking-wider">
-              {lastSession ? getScoreLabel(lastSession.avg_score) : "데이터 없음"}
-            </span>
-          </div>
-          {lastSession && (
-            <p className="text-[#cee5ff] text-sm max-w-[180px] relative z-10">
-              {exEmoji(lastSession.exercise_type)} {exName(lastSession.exercise_type)}
-              {" · "}
-              {format(new Date(lastSession.created_at), "M월 d일", { locale: ko })}
-            </p>
+
+          {postureAnalysis ? (() => {
+            const scores = [postureAnalysis.front?.score, postureAnalysis.side?.score].filter((s): s is number => s !== undefined);
+            const avg = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
+            return (
+              <>
+                <div className="relative z-10 mb-2">
+                  <span className="text-7xl font-bold text-white leading-none">{avg ?? "--"}</span>
+                  <span className="text-2xl text-[#9ecefd]">/100</span>
+                </div>
+                <div className="bg-[#9ecefd]/20 px-4 py-1 rounded-full relative z-10 mb-3">
+                  <span className="text-xs text-[#9ecefd] uppercase tracking-wider">
+                    {avg !== null ? getScoreLabel(avg) : "데이터 없음"}
+                  </span>
+                </div>
+                <div className="flex gap-3 relative z-10 mb-1">
+                  {postureAnalysis.front && (
+                    <span className="text-xs text-[#9ecefd]/70">
+                      정면 <span className="font-semibold text-[#9ecefd]">{Math.round(postureAnalysis.front.score)}</span>
+                    </span>
+                  )}
+                  {postureAnalysis.side && (
+                    <span className="text-xs text-[#9ecefd]/70">
+                      측면 <span className="font-semibold text-[#9ecefd]">{Math.round(postureAnalysis.side.score)}</span>
+                    </span>
+                  )}
+                </div>
+                <p className="text-[#9ecefd]/50 text-xs relative z-10">{postureAnalysis.date}</p>
+              </>
+            );
+          })() : (
+            <>
+              <div className="relative z-10 mb-2">
+                <span className="text-7xl font-bold text-white leading-none">
+                  {lastSession ? Math.round(lastSession.avg_score) : "--"}
+                </span>
+                <span className="text-2xl text-[#9ecefd]">/100</span>
+              </div>
+              <div className="bg-[#9ecefd]/20 px-4 py-1 rounded-full relative z-10 mb-3">
+                <span className="text-xs text-[#9ecefd] uppercase tracking-wider">
+                  {lastSession ? getScoreLabel(lastSession.avg_score) : "데이터 없음"}
+                </span>
+              </div>
+              {lastSession && (
+                <p className="text-[#cee5ff] text-sm max-w-[180px] relative z-10">
+                  {exEmoji(lastSession.exercise_type)} {exName(lastSession.exercise_type)}
+                  {" · "}
+                  {format(new Date(lastSession.created_at), "M월 d일", { locale: ko })}
+                </p>
+              )}
+            </>
           )}
+
           <p className="text-[#9ecefd]/50 text-xs mt-2 relative z-10">총 {history.length}회 운동 완료</p>
         </div>
 
@@ -299,26 +467,71 @@ export default function Home() {
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-[#2f628c]" style={{ fontSize: "20px" }}>event</span>
               <h3 className="text-lg font-semibold text-[#101c2a]">예정된 운동</h3>
+              {gcalConnected && (
+                <span className="px-1.5 py-0.5 bg-[#e8f5e9] text-[#2e7d32] text-[10px] rounded-full border border-[#a5d6a7]">
+                  Google Calendar
+                </span>
+              )}
             </div>
             <Link href="/calendar" className="text-[#2f628c] text-xs hover:underline">
               일정 관리
             </Link>
           </div>
-          {upcoming.length > 0 ? (
+
+          {gcalConnected ? (
+            gcalEvents.length > 0 ? (
+              <div className="space-y-2">
+                {gcalEvents.slice(0, 3).map((ev) => {
+                  const dt = new Date(ev.start.dateTime ?? ev.start.date ?? "");
+                  const isAllDay = !ev.start.dateTime;
+                  return (
+                    <div key={ev.id} className="flex gap-3 p-2.5 rounded-lg bg-[#eff4ff] border border-[#c1c7c9]">
+                      <div className="text-center min-w-[44px]">
+                        <p className="text-[10px] text-[#42484a]">{format(dt, "M월", { locale: ko })}</p>
+                        <p className="text-lg font-bold text-[#101c2a]">{format(dt, "d")}</p>
+                        <p className="text-[10px] text-[#2f628c] font-medium">{format(dt, "EEE", { locale: ko })}</p>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs font-bold text-[#101c2a] line-clamp-1">{ev.summary}</p>
+                        <p className="text-xs text-[#42484a] mt-0.5">
+                          {isAllDay ? "종일" : format(dt, "HH:mm")} · 운동 예정
+                        </p>
+                      </div>
+                      <div className="flex items-center">
+                        <span className="w-2 h-2 rounded-full bg-[#34A853]" />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-[#42484a] text-sm">
+                <span className="material-symbols-outlined block mb-2 text-[#c1c7c9]" style={{ fontSize: "36px" }}>
+                  event_busy
+                </span>
+                등록된 운동 일정이 없습니다
+                <br />
+                <Link href="/calendar" className="text-[#2f628c] text-xs hover:underline mt-1 inline-block">
+                  일정 추가하기
+                </Link>
+              </div>
+            )
+          ) : upcoming.length > 0 ? (
             <div className="space-y-2">
               {upcoming.slice(0, 3).map((w) => {
                 const dt = new Date(w.scheduled_time);
                 return (
                   <div key={w.id} className="flex gap-3 p-2.5 rounded-lg bg-[#eff4ff] border border-[#c1c7c9]">
                     <div className="text-center min-w-[44px]">
-                      <p className="text-[10px] text-[#42484a] uppercase">{format(dt, "MMM", { locale: ko })}</p>
+                      <p className="text-[10px] text-[#42484a]">{format(dt, "M월", { locale: ko })}</p>
                       <p className="text-lg font-bold text-[#101c2a]">{format(dt, "d")}</p>
+                      <p className="text-[10px] text-[#2f628c] font-medium">{format(dt, "EEE", { locale: ko })}</p>
                     </div>
                     <div className="flex-1">
                       <p className="text-xs font-bold text-[#101c2a]">
                         {exEmoji(w.exercise_type)} {exName(w.exercise_type)}
                       </p>
-                      <p className="text-xs text-[#42484a]">
+                      <p className="text-xs text-[#42484a] mt-0.5">
                         {format(dt, "HH:mm")} · 홈 운동
                       </p>
                     </div>
@@ -344,58 +557,94 @@ export default function Home() {
         </div>
 
         {/* Recent Activity / Alerts */}
-        <div className="col-span-12 md:col-span-7 bg-white border border-[#c1c7c9] rounded-lg p-4">
+        <div className="col-span-12 md:col-span-7 bg-white border border-[#c1c7c9] rounded-lg p-4 flex flex-col">
           <div className="flex justify-between items-center mb-3">
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-[#2f628c]" style={{ fontSize: "20px" }}>notifications_active</span>
               <h3 className="text-lg font-semibold text-[#101c2a]">최근 운동 기록</h3>
             </div>
-            {history.length > 0 && (
-              <span className="bg-[#ffdad6] text-[#93000a] px-2 py-1 rounded-lg text-xs">
-                {history.length}회 완료
-              </span>
-            )}
           </div>
-          {history.length > 0 ? (
-            <div className="space-y-0.5">
-              {history.slice(0, 4).map((s) => (
-                <div
-                  key={s.id}
-                  className="flex items-start gap-3 p-2.5 border-b border-[#c1c7c9]/40 hover:bg-[#f8f9ff] transition-colors rounded-lg"
-                >
-                  <div className="w-10 h-10 rounded-lg bg-[#2f628c]/10 flex items-center justify-center shrink-0 text-xl">
-                    {exEmoji(s.exercise_type)}
+
+          <div className="flex-1">
+            {gcalConnected ? (
+              gcalLastWorkout ? (
+                <div className="flex items-start gap-3 p-2.5 rounded-lg bg-[#f0fdf4] border border-[#a5d6a7]">
+                  <div className="w-10 h-10 rounded-lg bg-[#34A853]/10 flex items-center justify-center shrink-0 text-xl">
+                    🏋️
                   </div>
                   <div className="flex-1">
                     <div className="flex justify-between items-start">
-                      <h4 className="text-xs font-bold text-[#101c2a]">{exName(s.exercise_type)} 완료</h4>
+                      <h4 className="text-xs font-bold text-[#101c2a]">{gcalLastWorkout.summary}</h4>
                       <span className="text-xs text-[#42484a]">
-                        {format(new Date(s.created_at), "M.d HH:mm")}
+                        {format(new Date(gcalLastWorkout.start.dateTime ?? gcalLastWorkout.start.date ?? ""), "M.d HH:mm")}
                       </span>
                     </div>
                     <p className="text-xs text-[#42484a] mt-0.5">
-                      자세 점수{" "}
-                      <span className="font-semibold" style={{ color: getScoreColor(s.avg_score) }}>
-                        {s.avg_score.toFixed(0)}점
-                      </span>{" "}
-                      · {getScoreLabel(s.avg_score)}
+                      {format(new Date(gcalLastWorkout.start.dateTime ?? gcalLastWorkout.start.date ?? ""), "EEE요일", { locale: ko })} · Google Calendar
                     </p>
                   </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-6 text-[#42484a] text-sm">
-              <span className="material-symbols-outlined block mb-2 text-[#c1c7c9]" style={{ fontSize: "36px" }}>
-                fitness_center
+              ) : (
+                <div className="text-center py-6 text-[#42484a] text-sm">
+                  <span className="material-symbols-outlined block mb-2 text-[#c1c7c9]" style={{ fontSize: "36px" }}>
+                    fitness_center
+                  </span>
+                  아직 완료된 운동이 없습니다
+                </div>
+              )
+            ) : history.length > 0 ? (
+              <div className="space-y-0.5">
+                {history.slice(0, 4).map((s) => (
+                  <div
+                    key={s.id}
+                    className="flex items-start gap-3 p-2.5 border-b border-[#c1c7c9]/40 hover:bg-[#f8f9ff] transition-colors rounded-lg"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-[#2f628c]/10 flex items-center justify-center shrink-0 text-xl">
+                      {exEmoji(s.exercise_type)}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex justify-between items-start">
+                        <h4 className="text-xs font-bold text-[#101c2a]">{exName(s.exercise_type)} 완료</h4>
+                        <span className="text-xs text-[#42484a]">
+                          {format(new Date(s.created_at), "M.d HH:mm")}
+                        </span>
+                      </div>
+                      <p className="text-xs text-[#42484a] mt-0.5">
+                        자세 점수{" "}
+                        <span className="font-semibold" style={{ color: getScoreColor(s.avg_score) }}>
+                          {s.avg_score.toFixed(0)}점
+                        </span>{" "}
+                        · {getScoreLabel(s.avg_score)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-[#42484a] text-sm">
+                <span className="material-symbols-outlined block mb-2 text-[#c1c7c9]" style={{ fontSize: "36px" }}>
+                  fitness_center
+                </span>
+                아직 운동 기록이 없습니다
+                <br />
+                <Link href="/exercise" className="text-[#2f628c] text-xs hover:underline mt-1 inline-block">
+                  첫 운동 시작하기
+                </Link>
+              </div>
+            )}
+          </div>
+
+          {/* 총 운동 횟수 */}
+          <div className="mt-3 pt-3 border-t border-[#c1c7c9]/40 text-center">
+            <span className="text-xs text-[#72787a]">
+              총{" "}
+              <span className="font-bold text-[#101c2a]">
+                {gcalConnected ? gcalTotalCount : history.length}
               </span>
-              아직 운동 기록이 없습니다
-              <br />
-              <Link href="/exercise" className="text-[#2f628c] text-xs hover:underline mt-1 inline-block">
-                첫 운동 시작하기
-              </Link>
-            </div>
-          )}
+              회 운동 완료
+              {gcalConnected && gcalTotalCount === 100 && "+"}
+            </span>
+          </div>
         </div>
       </div>
 
