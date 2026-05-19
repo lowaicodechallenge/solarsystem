@@ -7,13 +7,21 @@ import { ko } from "date-fns/locale";
 const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "1028156401008-163i48haeg8riirt6t1fqeq9g223qghg.apps.googleusercontent.com";
 const HOURS = Array.from({ length: 17 }, (_, i) => i + 6); // 06:00 ~ 22:00
 const DAYS = 7;
+const EVENT_MARKER = "솔메이트"; // 우리가 만든 운동 이벤트 식별용 (summary에 포함)
+
+// 자동 선택 설정
+const AUTO_SESSIONS = 3;                       // 주당 운동 횟수
+const MIN_GAP_DAYS = 1;                         // 운동 사이 최소 간격(일) → 격일
+const PREFERRED_HOURS = [19, 20, 18, 21, 17, 8, 7]; // 선호 시간대 우선순위
 
 type BusySlot = { start: string; end: string };
 type SelectedSlot = { date: Date; hour: number };
+type MyEvent = { id: string; start: number; end: number }; // epoch ms
 
 function CalendarViewInner({ userId: _userId }: { userId: string }) {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [busySlots, setBusySlots] = useState<BusySlot[]>([]);
+  const [myEvents, setMyEvents] = useState<MyEvent[]>([]);
   const [selected, setSelected] = useState<SelectedSlot[]>([]);
   const [loadingBusy, setLoadingBusy] = useState(false);
   const [creatingEvents, setCreatingEvents] = useState(false);
@@ -34,50 +42,83 @@ function CalendarViewInner({ userId: _userId }: { userId: string }) {
     scope: "https://www.googleapis.com/auth/calendar",
   });
 
-  const fetchBusy = useCallback(async (token: string) => {
-    setLoadingBusy(true);
-    const today = startOfDay(new Date());
-    try {
-      const res = await fetch("https://www.googleapis.com/calendar/v3/freeBusy", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          timeMin: today.toISOString(),
-          timeMax: addDays(today, DAYS).toISOString(),
-          items: [{ id: "primary" }],
-        }),
-      });
-      if (res.status === 401) {
-        setAccessToken(null);
-        localStorage.removeItem("gcal_access_token");
-        return;
-      }
-      const data = await res.json();
-      setBusySlots(data.calendars?.primary?.busy ?? []);
-    } catch {
-      // keep empty on network error
-    }
-    setLoadingBusy(false);
+  const handle401 = useCallback(() => {
+    setAccessToken(null);
+    localStorage.removeItem("gcal_access_token");
   }, []);
 
+  const refresh = useCallback(async (token: string) => {
+    setLoadingBusy(true);
+    const today = startOfDay(new Date());
+    const timeMin = today.toISOString();
+    const timeMax = addDays(today, DAYS).toISOString();
+    try {
+      // 1) 전체 바쁜 시간대 (다른 일정 포함)
+      const busyRes = await fetch("https://www.googleapis.com/calendar/v3/freeBusy", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ timeMin, timeMax, items: [{ id: "primary" }] }),
+      });
+      if (busyRes.status === 401) return handle401();
+      const busyData = await busyRes.json();
+      setBusySlots(busyData.calendars?.primary?.busy ?? []);
+
+      // 2) 우리가 등록한 솔메이트 운동 이벤트 (id 포함 → 삭제 가능)
+      const evRes = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(
+          timeMin
+        )}&timeMax=${encodeURIComponent(
+          timeMax
+        )}&singleEvents=true&orderBy=startTime&maxResults=100&q=${encodeURIComponent(EVENT_MARKER)}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (evRes.status === 401) return handle401();
+      const evData = await evRes.json();
+      const mine: MyEvent[] = (evData.items ?? [])
+        .filter(
+          (e: { summary?: string; start?: { dateTime?: string } }) =>
+            (e.summary ?? "").includes(EVENT_MARKER) && e.start?.dateTime
+        )
+        .map((e: { id: string; start: { dateTime: string }; end: { dateTime: string } }) => ({
+          id: e.id,
+          start: new Date(e.start.dateTime).getTime(),
+          end: new Date(e.end.dateTime).getTime(),
+        }));
+      setMyEvents(mine);
+    } catch {
+      // keep current state on network error
+    }
+    setLoadingBusy(false);
+  }, [handle401]);
+
   useEffect(() => {
-    if (accessToken) fetchBusy(accessToken);
-  }, [accessToken, fetchBusy]);
+    if (accessToken) refresh(accessToken);
+  }, [accessToken, refresh]);
 
   const today = startOfDay(new Date());
   const days = Array.from({ length: DAYS }, (_, i) => addDays(today, i));
 
+  const slotRange = (date: Date, hour: number) => {
+    const start = setHours(setMinutes(date, 0), hour).getTime();
+    return { start, end: start + 60 * 60 * 1000 };
+  };
+
+  const isPast = (date: Date, hour: number): boolean =>
+    slotRange(date, hour).start <= Date.now();
+
   const isBusy = (date: Date, hour: number): boolean => {
-    const slotStart = setHours(setMinutes(date, 0), hour).getTime();
-    const slotEnd = slotStart + 60 * 60 * 1000;
+    const { start, end } = slotRange(date, hour);
     return busySlots.some((b) => {
       const bStart = new Date(b.start).getTime();
       const bEnd = new Date(b.end).getTime();
-      return bStart < slotEnd && bEnd > slotStart;
+      return bStart < end && bEnd > start;
     });
+  };
+
+  // 우리가 등록한 운동 이벤트가 이 슬롯에 있으면 그 이벤트 반환
+  const myEventAt = (date: Date, hour: number): MyEvent | undefined => {
+    const { start, end } = slotRange(date, hour);
+    return myEvents.find((e) => e.start < end && e.end > start);
   };
 
   const isSelected = (date: Date, hour: number) =>
@@ -85,8 +126,38 @@ function CalendarViewInner({ userId: _userId }: { userId: string }) {
       (s) => s.date.toDateString() === date.toDateString() && s.hour === hour
     );
 
+  // 운동 등록 가능한 빈 슬롯인가 (과거·바쁨·내 이벤트 제외)
+  const isFree = (date: Date, hour: number) =>
+    !isPast(date, hour) && !isBusy(date, hour) && !myEventAt(date, hour);
+
+  const deleteMyEvent = async (ev: MyEvent) => {
+    if (!accessToken) return;
+    const label = format(new Date(ev.start), "M/d (EEE) HH:mm", { locale: ko });
+    if (!confirm(`${label} 운동 일정을 취소할까요?`)) return;
+    setCreatingEvents(true);
+    try {
+      const res = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/primary/events/${ev.id}`,
+        { method: "DELETE", headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      if (res.status === 401) {
+        handle401();
+        return;
+      }
+    } catch {
+      // ignore network error
+    }
+    setCreatingEvents(false);
+    await refresh(accessToken);
+  };
+
   const toggleSlot = (date: Date, hour: number) => {
-    if (isBusy(date, hour)) return;
+    const mine = myEventAt(date, hour);
+    if (mine) {
+      deleteMyEvent(mine);
+      return;
+    }
+    if (!isFree(date, hour)) return;
     setSelected((prev) =>
       isSelected(date, hour)
         ? prev.filter(
@@ -94,6 +165,51 @@ function CalendarViewInner({ userId: _userId }: { userId: string }) {
           )
         : [...prev, { date, hour }]
     );
+  };
+
+  // 빈 시간대를 격일·선호 시간 기준으로 자동 선택 (등록 전 미리보기)
+  const autoFill = () => {
+    const picks: SelectedSlot[] = [];
+    let lastDayIdx = -99;
+    for (let i = 0; i < days.length && picks.length < AUTO_SESSIONS; i++) {
+      if (i - lastDayIdx <= MIN_GAP_DAYS) continue; // 운동 사이 간격 확보
+      const d = days[i];
+      let chosen: number | null = null;
+      for (const h of PREFERRED_HOURS) {
+        if (HOURS.includes(h) && isFree(d, h) && !isSelected(d, h)) {
+          chosen = h;
+          break;
+        }
+      }
+      if (chosen === null) {
+        for (const h of HOURS) {
+          if (isFree(d, h) && !isSelected(d, h)) {
+            chosen = h;
+            break;
+          }
+        }
+      }
+      if (chosen !== null) {
+        picks.push({ date: d, hour: chosen });
+        lastDayIdx = i;
+      }
+    }
+    if (picks.length === 0) {
+      alert("이번 주에 추천할 빈 시간대를 찾지 못했습니다.");
+      return;
+    }
+    setSelected((prev) => {
+      const merged = [...prev];
+      for (const p of picks) {
+        if (
+          !merged.some(
+            (s) => s.date.toDateString() === p.date.toDateString() && s.hour === p.hour
+          )
+        )
+          merged.push(p);
+      }
+      return merged;
+    });
   };
 
   const createEvents = async () => {
@@ -123,7 +239,7 @@ function CalendarViewInner({ userId: _userId }: { userId: string }) {
     setDone(true);
     setSelected([]);
     setCreatingEvents(false);
-    await fetchBusy(accessToken);
+    await refresh(accessToken);
   };
 
   if (!accessToken) {
@@ -157,11 +273,11 @@ function CalendarViewInner({ userId: _userId }: { userId: string }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-medium text-[#101c2a]">
+          <p className="text-sm font-semibold text-[#e5e2e1]">
             {loadingBusy ? "캘린더 조회 중..." : "운동할 시간대를 선택하세요"}
           </p>
-          <p className="text-xs text-[#72787a] mt-0.5">
-            초록색 = 빈 시간 &middot; 파란색 = 선택됨 &middot; 회색 = 이미 일정 있음
+          <p className="text-xs text-[#c7c4da] mt-0.5">
+            초록 = 빈 시간 &middot; 파랑 = 선택됨 &middot; 보라 = 내 운동(클릭 시 취소) &middot; 회색 = 불가
           </p>
         </div>
         <button
@@ -169,13 +285,23 @@ function CalendarViewInner({ userId: _userId }: { userId: string }) {
             setAccessToken(null);
             localStorage.removeItem("gcal_access_token");
             setBusySlots([]);
+            setMyEvents([]);
             setSelected([]);
           }}
-          className="text-xs text-[#72787a] hover:text-red-400 transition-colors"
+          className="text-xs text-[#c7c4da] hover:text-[#ffb4ab] transition-colors"
         >
           연결 해제
         </button>
       </div>
+
+      {/* 자동 추천 등록 */}
+      <button
+        onClick={autoFill}
+        disabled={loadingBusy || creatingEvents}
+        className="w-full py-2.5 bg-[#4a3aff]/20 hover:bg-[#4a3aff]/30 disabled:opacity-50 text-[#c3c0ff] font-semibold rounded-xl text-sm transition-all flex items-center justify-center gap-2 border border-[#c3c0ff]/30"
+      >
+        ✨ 빈 시간 자동 선택 (주 {AUTO_SESSIONS}회, 격일 기준)
+      </button>
 
       {/* When2Meet grid */}
       <div className="bg-white border border-[#c1c7c9] rounded-xl overflow-hidden">
@@ -207,16 +333,20 @@ function CalendarViewInner({ userId: _userId }: { userId: string }) {
                 </span>
               </div>
               {days.map((d) => {
-                const busy = isBusy(d, hour);
+                const mine = myEventAt(d, hour);
                 const sel = isSelected(d, hour);
+                const blocked = !mine && (isPast(d, hour) || isBusy(d, hour));
                 return (
                   <button
                     key={d.toISOString()}
                     onClick={() => toggleSlot(d, hour)}
-                    disabled={busy}
-                    aria-label={`${format(d, "M/d")} ${hour}시`}
+                    disabled={blocked}
+                    aria-label={`${format(d, "M/d")} ${hour}시${mine ? " 내 운동" : ""}`}
+                    title={mine ? "클릭하면 이 운동 일정을 취소합니다" : undefined}
                     className={`h-8 border-l border-[#e5e8ed] transition-colors ${
-                      busy
+                      mine
+                        ? "bg-[#7e57c2] hover:bg-[#6a40b8] cursor-pointer"
+                        : blocked
                         ? "bg-[#eeeeee] cursor-not-allowed"
                         : sel
                         ? "bg-[#2f628c] hover:bg-[#245277]"

@@ -517,9 +517,46 @@ function ExercisePageInner() {
               </p>
             )}
 
-            <p className="text-xs text-[#c7c4da]/50 mt-1 border-t border-white/5 pt-3">
-              {analysis.recommendation_note}
-            </p>
+            {(analysis.recommendation_note ||
+              Object.keys(analysis.exercise_reasons ?? {}).length > 0) && (
+              <div className="mt-1 border-t border-white/5 pt-3 flex flex-col gap-2.5">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="material-symbols-outlined text-[#00e293]"
+                    style={{ fontSize: "16px", fontVariationSettings: "'FILL' 1" }}
+                  >
+                    lightbulb
+                  </span>
+                  <h3 className="text-xs font-bold text-[#00e293] uppercase tracking-wider">
+                    운동 추천 이유
+                  </h3>
+                </div>
+
+                {analysis.recommendation_note && (
+                  <p className="text-xs text-[#c7c4da] leading-relaxed">
+                    {analysis.recommendation_note}
+                  </p>
+                )}
+
+                {Object.keys(analysis.exercise_reasons ?? {}).length > 0 && (
+                  <ul className="flex flex-col gap-2">
+                    {Object.entries(analysis.exercise_reasons).map(([name, reason]) => (
+                      <li key={name} className="flex gap-2 text-xs">
+                        <span
+                          className="material-symbols-outlined text-[#c3c0ff] shrink-0"
+                          style={{ fontSize: "14px" }}
+                        >
+                          check_circle
+                        </span>
+                        <span className="text-[#c7c4da] leading-relaxed">
+                          <span className="text-[#e5e2e1] font-semibold">{name}</span> — {reason}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
           </div>
         )}
 

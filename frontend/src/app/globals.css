@@ -61,16 +61,16 @@ body {
 
 /* Scan line animation */
 @keyframes scanline {
-  0%   { transform: translateY(-100%); }
-  100% { transform: translateY(1000%); }
+  0%   { top: 0; }
+  100% { top: 100%; }
 }
 .scan-line {
   height: 2px;
   background: linear-gradient(90deg, transparent, #00e293, transparent);
   box-shadow: 0 0 15px #00e293;
-  animation: scanline 4s linear infinite;
+  animation: scanline 2.5s linear infinite;
   position: absolute;
-  top: 0; left: 0;
+  left: 0;
   width: 100%;
   z-index: 10;
 }

@@ -11,6 +11,7 @@
 import asyncio
 import json
 import os
+import random
 import re
 import xml.etree.ElementTree as ET
 
@@ -88,11 +89,18 @@ AI가 분석한 사용자 신체 상태를 읽고, 국민체력100 운동 영상
 ────────────────────────────────────────
 ■ 부위 매핑 (반드시 아래 3개 중에서만 선택)
 
-  어깨 → 거북목, 어깨 말림, 목/어깨 통증, 승모근 긴장, 경추 문제, 목 교정
-  허리 → 골반 비대칭, 골반 기울기, 요통, 척추 측만, 코어 약화, 과신전, 허리 교정
-  무릎 → 무릎 통증(만성·재활), 하체 근력 약화, 다리 불균형
+  어깨 → 거북목, 어깨 말림, 목/어깨 통증, 승모근 긴장, 경추 문제, 목 교정,
+         팔/팔꿈치/손목 통증
+  허리 → 골반 비대칭, 골반 기울기, 요통, 척추 측만, 코어 약화, 과신전, 허리 교정,
+         고관절(엉덩관절) 통증·불균형, 골반 통증, 엉덩이/둔근 약화, 복부 약화
+  무릎 → 무릎 통증(만성·재활), 하체 근력 약화, 다리 불균형, 발목/종아리 문제,
+         고관절·하체 연계 근력 저하
 
   ※ 같은 문제가 여러 부위에 해당하면 모두 포함 (예: 거북목+골반 → ["어깨","허리"])
+  ※ 고관절·골반·엉덩이·하체·다리 문제는 기본적으로 "허리"에 매핑하고,
+     하체 근력·다리와 관련되면 "무릎"도 함께 포함
+  ※ 표에 정확히 없는 부위라도 가장 인접한 부위로 매핑하라.
+     절대로 빈 배열([])을 반환하지 마라 — 최소 1개 부위는 반드시 선택
   ※ 해당 부위가 운동 금지 조건이면 제외
 
 ────────────────────────────────────────
@@ -261,11 +269,14 @@ async def recommend_nfa_videos(
 
     print(f"[NFA] goal={goal!r} → target_parts={target_parts}, place={exercise_place}", flush=True)
 
-    # target_parts가 없으면 (부상만 있거나 goal 없음) MSCL 전체 조회
+    # 분류 실패/빈 결과 시: 무필터 조회는 API 기본정렬상 한 부위(어깨)로 쏠리므로
+    # 유효 3부위를 각각 조회해 라운드로빈으로 고르게 섞는다.
+    if not target_parts:
+        target_parts = list(_VALID_MSCL)
     mscl_tasks = [
         _fetch(OP_MUSCULOSKELETAL, {"trng_part_nm": p}, num_rows=50)
         for p in target_parts
-    ] or [_fetch(OP_MUSCULOSKELETAL, {}, num_rows=80)]
+    ]
 
     # Step 2: 타겟 부위별 MSCL + PRSC 병렬 호출
     # PRSC는 장소 필터만 (aggrp_nm=성인 등은 DB에 데이터 없음)
@@ -277,32 +288,45 @@ async def recommend_nfa_videos(
         *mscl_tasks,
         _fetch(OP_PRESCRIPTION, prsc_params, num_rows=80),
     )
-    raw_mscl = [item for sub in raw_mscl_list for item in sub]
-
-    # Step 3: 정규화 + file_nm 기준 중복 제거 (가중치 높은 쪽 우선)
+    # Step 3: 부위별로 정규화·중복 제거 후 부위 내 셔플
+    #   raw_mscl_list[i] 는 mscl_tasks[i] 결과이므로 part_labels[i] 와 1:1 대응.
+    #   부위별로 따로 모아두어야 특정 부위가 결과를 독점하지 않는다.
     seen: set[str] = set()
-    pool: list[tuple[float, dict]] = []
+    part_labels = target_parts or ["_all"]
+    by_part: dict[str, list[dict]] = {}
+    for label, sub in zip(part_labels, raw_mscl_list):
+        bucket = by_part.setdefault(label, [])
+        for item in sub:
+            v = _normalize(item)
+            if v and _is_valid(v, pain_areas) and v["file_nm"] not in seen:
+                seen.add(v["file_nm"])
+                bucket.append(v)
+    for bucket in by_part.values():
+        random.shuffle(bucket)  # 같은 분류여도 매 호출 다른 영상이 나오도록
 
-    for item in raw_mscl:
-        v = _normalize(item)
-        if v and v["file_nm"] not in seen:
-            seen.add(v["file_nm"])
-            pool.append((0.35, v))
+    # Step 4: 부위 라운드로빈 인터리빙 — 분류된 모든 부위가 균등 노출
+    interleaved: list[dict] = []
+    unique_labels = list(dict.fromkeys(part_labels))
+    while len(interleaved) < max_results and any(by_part.values()):
+        for label in unique_labels:
+            bucket = by_part.get(label)
+            if bucket:
+                interleaved.append(bucket.pop(0))
+                if len(interleaved) >= max_results:
+                    break
 
-    for item in raw_prsc:
-        v = _normalize(item)
-        if v and v["file_nm"] not in seen:
-            seen.add(v["file_nm"])
-            pool.append((0.30, v))
+    # Step 5: 부족분은 PRSC(운동처방)에서 셔플 후 보충
+    if len(interleaved) < max_results:
+        prsc_pool: list[dict] = []
+        for item in raw_prsc:
+            v = _normalize(item)
+            if v and _is_valid(v, pain_areas) and v["file_nm"] not in seen:
+                seen.add(v["file_nm"])
+                prsc_pool.append(v)
+        random.shuffle(prsc_pool)
+        interleaved.extend(prsc_pool[: max_results - len(interleaved)])
 
-    # Step 4: 필터링
-    pool = [(w, v) for w, v in pool if _is_valid(v, pain_areas)]
-
-    # Step 5: 가중치 내림차순 정렬 → max_results 반환 (내부 키 제거)
-    pool.sort(key=lambda x: x[0], reverse=True)
-    result = []
-    for _, v in pool[:max_results]:
+    # 내부 dedup 키 제거 후 반환
+    for v in interleaved:
         v.pop("file_nm", None)
-        result.append(v)
-
-    return result
+    return interleaved

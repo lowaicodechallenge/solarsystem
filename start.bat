@@ -14,7 +14,12 @@ timeout /t 1 /nobreak >nul
 REM Start backend
 echo [1/2] Starting backend server (port 8000)...
 cd backend
-start "FitAI Backend" cmd /k "python -m uvicorn main:socket_app --host 0.0.0.0 --port 8000 --reload"
+if not exist .venv\Scripts\python.exe (
+    echo [ERROR] backend\.venv not found. Run setup.bat first.
+    pause
+    exit /b 1
+)
+start "FitAI Backend" cmd /k ".venv\Scripts\python.exe -m uvicorn main:socket_app --host 0.0.0.0 --port 8000 --reload"
 cd ..
 
 REM Wait for backend to start

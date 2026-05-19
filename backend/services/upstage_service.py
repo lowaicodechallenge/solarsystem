@@ -372,6 +372,12 @@ async def analyze_current_state(
 ) -> dict:
     system_prompt = """당신은 전문 물리치료사이자 개인 트레이너입니다.
 사용자의 자세 분석 결과, 증상, 임상 자료를 종합하여 현재 신체 상태를 평가하고 적합한 운동을 추천합니다.
+
+운동 추천 이유를 설명할 때는 반드시 다음 흐름으로 충분히 자세하게 서술하세요:
+1) 현재 어떤 자세·신체 문제가 있고 그것이 왜(어떤 원인으로) 발생했는지
+2) 그래서 어느 근육/부위를 강화하거나 이완·교정해야 하는지
+3) 따라서 어떤 유형의 운동을 왜 추천하는지
+사용자가 이해하기 쉽도록 부위 이름과 근육을 구체적으로 언급하고, 동기부여가 되는 어조로 작성하세요.
 반드시 한국어로 답변하세요."""
 
     issues_text = "\n".join([f"- {i}" for i in posture_issues]) if posture_issues else "- 없음"
@@ -384,7 +390,13 @@ async def analyze_current_state(
 
     risk_section = ""
     if risk_tags:
-        risk_section = "\n\n## 운동 위험 태그 (반드시 회피)\n" + "\n".join(f"- {t}" for t in risk_tags)
+        risk_section = (
+            "\n\n## 운동 위험 태그 (반드시 회피 + risk_areas에 반드시 반영)\n"
+            + "\n".join(f"- {t}" for t in risk_tags)
+            + "\n위 태그가 가리키는 신체 부위·건강 상태(예: avoid_high_intensity→혈압/심혈관, "
+            "avoid_spinal_flexion_load→허리, avoid_jump→무릎, monitor_blood_sugar→혈당)는 "
+            "반드시 risk_areas 항목에 사용자가 이해할 수 있는 한국어 부위·상태명으로 포함하세요."
+        )
 
     exercises_text = "\n".join([f"- {ex['name']}: {ex['description']}" for ex in rag_exercises[:4]])
 
@@ -407,10 +419,10 @@ async def analyze_current_state(
 {{
   "state_summary": "현재 신체 상태 요약 2~3문장",
   "main_concerns": ["주요 우려사항1", "주요 우려사항2"],
-  "risk_areas": ["주의 부위1"],
-  "recommendation_note": "운동 추천 이유 1~2문장",
+  "risk_areas": ["주의가 필요한 신체 부위·건강 상태. 위험 태그나 증상(예: 고혈압, 당뇨, 허리 디스크, 무릎 통증)이 있으면 해당 부위·상태를 반드시 포함. 없으면 빈 배열"],
+  "recommendation_note": "운동 추천 이유를 4~6문장으로 자세히 서술. ①현재 문제와 그 원인 → ②강화/이완해야 할 구체적 부위·근육 → ③그래서 추천하는 운동 유형, 순서로 자연스럽게 이어서 설명",
   "exercise_reasons": {{
-    "운동명": "이 운동을 추천하는 이유 (1문장)"
+    "운동명": "이 운동이 어느 근육·부위를 어떻게 개선하며 사용자의 현재 상태와 어떻게 연결되는지 2~3문장으로 구체적으로"
   }}
 }}"""
 
@@ -419,7 +431,7 @@ async def analyze_current_state(
             [{"role": "user", "content": user_message}],
             system_prompt=system_prompt,
             temperature=0.4,
-            max_tokens=1200,
+            max_tokens=2000,
         )
         start = result.find("{")
         end = result.rfind("}") + 1
@@ -432,8 +444,97 @@ async def analyze_current_state(
         "state_summary": "자세 분석 결과를 바탕으로 맞춤 운동을 추천해드립니다.",
         "main_concerns": posture_issues[:2] if posture_issues else ["자세 데이터가 없습니다"],
         "risk_areas": [],
-        "recommendation_note": "아래 운동들을 통해 자세를 교정하고 건강을 개선하세요.",
+        "recommendation_note": (
+            "자세 분석에서 나타난 불균형은 특정 근육이 약해지거나 과도하게 긴장하면서 생깁니다. "
+            "약해진 부위는 강화하고 긴장된 부위는 이완해 좌우·전후 균형을 회복하는 것이 핵심입니다. "
+            "아래 운동들은 이런 교정 원리에 따라 선택되었으니 꾸준히 수행하면 자세와 통증 개선에 도움이 됩니다."
+        ),
         "exercise_reasons": {},
+    }
+
+
+async def generate_weekly_report(
+    stats: dict,
+    symptoms: str = "",
+    risk_tags: list[str] = [],
+    posture_scores: dict = {},
+) -> dict:
+    """주간 운동 기록·자세 점수·증상을 종합한 주간 리포트 생성.
+
+    Args:
+        stats: {session_count, avg_score, score_trend, exercise_breakdown,
+                best_score, worst_score, period_days}
+        symptoms: 사용자 증상 텍스트
+        risk_tags: 문서에서 추출된 위험 태그
+        posture_scores: {front, side} 최근 자세 스캔 점수
+    """
+    system_prompt = """당신은 전문 물리치료사이자 개인 트레이너입니다.
+사용자의 한 주간 운동 기록과 자세 데이터를 분석해 따뜻하고 동기부여가 되는 주간 리포트를 작성합니다.
+의료 진단이 아닌 보조적 운동 관리 관점에서 조언하며, 반드시 한국어로 답변하세요."""
+
+    breakdown = stats.get("exercise_breakdown", {})
+    breakdown_text = (
+        "\n".join(f"- {k}: {v}회" for k, v in breakdown.items())
+        if breakdown else "- 기록 없음"
+    )
+    posture_text = (
+        f"정면 {posture_scores.get('front', '–')} / 측면 {posture_scores.get('side', '–')}"
+        if posture_scores else "최근 자세 스캔 없음"
+    )
+    risk_section = (
+        "\n\n## 운동 위험 태그 (안전 권고 시 반드시 반영)\n"
+        + "\n".join(f"- {t}" for t in risk_tags)
+        if risk_tags else ""
+    )
+
+    user_message = f"""다음은 사용자의 최근 {stats.get('period_days', 7)}일간 데이터입니다.
+
+## 운동 기록
+- 총 운동 횟수: {stats.get('session_count', 0)}회
+- 평균 자세 점수: {stats.get('avg_score', 0):.0f}/100
+- 점수 추세: {stats.get('score_trend', '데이터 부족')}
+- 최고/최저 점수: {stats.get('best_score', 0):.0f} / {stats.get('worst_score', 0):.0f}
+- 운동 종류별 횟수:
+{breakdown_text}
+
+## 최근 자세 스캔 점수
+{posture_text}
+
+## 증상/불편사항
+{symptoms if symptoms else "없음"}{risk_section}
+
+반드시 아래 JSON 형식으로만 응답하세요:
+{{
+  "headline": "이번 주를 한 문장으로 요약 (격려 톤)",
+  "summary": "운동 패턴·자세 변화에 대한 종합 평가 3~4문장",
+  "achievements": ["이번 주 잘한 점 1~3개"],
+  "improvements": ["개선이 필요한 점 1~3개"],
+  "next_week_focus": ["다음 주 집중할 운동/자세 방향 2~3개"],
+  "caution": "위험 태그·증상이 있을 때 전문가 상담 권고 1문장 (없으면 빈 문자열)"
+}}"""
+
+    try:
+        result = await chat(
+            [{"role": "user", "content": user_message}],
+            system_prompt=system_prompt,
+            temperature=0.5,
+            max_tokens=1000,
+        )
+        start = result.find("{")
+        end = result.rfind("}") + 1
+        if start != -1 and end > start:
+            return json.loads(result[start:end])
+    except Exception:
+        pass
+
+    return {
+        "headline": "이번 주도 운동을 이어가고 계세요!",
+        "summary": f"최근 {stats.get('period_days', 7)}일간 {stats.get('session_count', 0)}회 운동했으며 "
+                   f"평균 자세 점수는 {stats.get('avg_score', 0):.0f}점입니다. 꾸준함이 가장 중요합니다.",
+        "achievements": ["운동을 시작하고 기록을 남겼습니다"] if stats.get("session_count", 0) else [],
+        "improvements": ["주 3회 이상 규칙적인 운동을 목표로 해보세요"],
+        "next_week_focus": ["자세 스캔으로 교정 포인트 점검", "꾸준한 운동 습관 유지"],
+        "caution": "통증이 지속되면 전문가 상담을 권장합니다." if (risk_tags or symptoms) else "",
     }
 
 
@@ -566,6 +667,22 @@ def apply_risk_tags(data: dict) -> list[str]:
             sources.append(val)
 
     for text in sources:
+        if not text:
+            continue
+        for keyword, tag in _RISK_TAG_MAP.items():
+            if keyword in text:
+                tags.add(tag)
+    return sorted(tags)
+
+
+def risk_tags_from_text(*texts: str) -> list[str]:
+    """자유 입력 텍스트(증상·문서 원문 등)에서 운동 위험 태그 추출.
+
+    apply_risk_tags()는 구조화된 health_info(dict)만 보지만, 사용자가
+    직접 입력한 증상 문자열이나 문서 원문에는 적용되지 않으므로 이를 보완한다.
+    """
+    tags: set[str] = set()
+    for text in texts:
         if not text:
             continue
         for keyword, tag in _RISK_TAG_MAP.items():

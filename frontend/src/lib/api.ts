@@ -225,4 +225,38 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     }),
+
+  getWeeklyReport: (data: {
+    user_id: string;
+    period_days?: number;
+    symptoms?: string;
+    risk_tags?: string[];
+    posture_scores?: { front?: number; side?: number };
+  }) =>
+    fetchJson<WeeklyReportResult>("/api/report/weekly", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }),
+};
+
+export type WeeklyReportResult = {
+  stats: {
+    period_days: number;
+    session_count: number;
+    avg_score: number;
+    best_score: number;
+    worst_score: number;
+    score_trend: string;
+    exercise_breakdown: Record<string, number>;
+  };
+  report: {
+    headline: string;
+    summary: string;
+    achievements: string[];
+    improvements: string[];
+    next_week_focus: string[];
+    caution: string;
+  };
+  generated_at: string;
 };

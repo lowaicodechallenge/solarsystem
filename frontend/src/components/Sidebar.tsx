@@ -6,6 +6,7 @@ const navItems = [
   { href: "/",         label: "Dashboard", icon: "dashboard" },
   { href: "/scanpose", label: "Posture",   icon: "accessibility_new" },
   { href: "/exercise", label: "Workout",   icon: "fitness_center" },
+  { href: "/report",   label: "Report",    icon: "summarize" },
   { href: "/calendar", label: "Calendar",  icon: "calendar_today" },
 ];
 
