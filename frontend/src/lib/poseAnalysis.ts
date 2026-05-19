@@ -35,9 +35,17 @@ function dist2d(a: Keypoint, b: Keypoint): number {
   return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
 }
 
+function calcAngle(A: Keypoint, B: Keypoint, C: Keypoint): number {
+  const AB = { x: A.x - B.x, y: A.y - B.y };
+  const CB = { x: C.x - B.x, y: C.y - B.y };
+  const dot = AB.x * CB.x + AB.y * CB.y;
+  const mag = Math.sqrt(AB.x ** 2 + AB.y ** 2) * Math.sqrt(CB.x ** 2 + CB.y ** 2);
+  return Math.acos(Math.max(-1, Math.min(1, dot / mag))) * (180 / Math.PI);
+}
+
 // ── Core Analysis ─────────────────────────────────────────────────────────────
 
-export function analyzePosture(keypoints: Keypoint[]): {
+export function analyzePosture(keypoints: Keypoint[], isSideView = false): {
   angles: PoseAngles;
   score: number;
   issues: PostureIssue[];
@@ -49,6 +57,8 @@ export function analyzePosture(keypoints: Keypoint[]): {
   const rShoulder = kp(keypoints, "right_shoulder");
   const lHip      = kp(keypoints, "left_hip");
   const rHip      = kp(keypoints, "right_hip");
+  const lKnee     = kp(keypoints, "left_knee");
+  const rKnee     = kp(keypoints, "right_knee");
   const lAnkle    = kp(keypoints, "left_ankle");
   const rAnkle    = kp(keypoints, "right_ankle");
 
@@ -78,29 +88,51 @@ export function analyzePosture(keypoints: Keypoint[]): {
     const zDiff = earZ - shoulderZ; // 음수 = 귀가 앞으로
     angles.head_forward_z = zDiff;
 
+    let headDeduction = 0;
+    let headSeverity: "warning" | "error" = "warning";
+    let headMessage = "";
+    if (tiltDeg > 13 || zDiff < -0.08) {
+      headDeduction += 5;
+      headSeverity = "warning";
+      headMessage = "머리가 앞으로 약간 나와 있어요. 턱을 살짝 당겨보세요.";
+    }
     if (tiltDeg > 22 || zDiff < -0.15) {
-      issues.push({ severity: "error", message: "거북목이에요. 턱을 당기고 귀가 어깨 위에 오도록 자세를 바로잡으세요." });
-      score -= 22;
-    } else if (tiltDeg > 13 || zDiff < -0.08) {
-      issues.push({ severity: "warning", message: "머리가 앞으로 약간 나와 있어요. 턱을 살짝 당겨보세요." });
-      score -= 11;
+      headDeduction += 8;
+      headSeverity = "error";
+      headMessage = "거북목이에요. 턱을 당기고 귀가 어깨 위에 오도록 자세를 바로잡으세요.";
+    }
+    if (tiltDeg > 35 || zDiff < -0.25) {
+      headDeduction += 12;
+      headSeverity = "error";
+      headMessage = "거북목이 심각해요. 즉시 자세를 교정하세요.";
+    }
+    if (headDeduction > 0) {
+      issues.push({ severity: headSeverity, message: headMessage });
+      score -= headDeduction;
     }
   }
 
-  // ── 2. 어깨 말림: 어깨-귀 수평 차이 ──────────────────────────────────────
-  // 어깨 끝이 귀보다 안쪽으로 들어올수록 말린 어깨.
-  if (visible(lEar) && visible(lShoulder) && visible(rEar) && visible(rShoulder)) {
+  // ── 2. 어깨 말림: 측면에서 z축 깊이로 측정 ───────────────────────────────
+  // 어깨가 귀보다 카메라 쪽(음수 z)으로 나올수록 말린 어깨.
+  // x 거리(avgGap)를 보조 조건으로 사용해 노이즈 필터링.
+  if (visible(lEar) && visible(rEar) && visible(lShoulder) && visible(rShoulder)) {
+    const earZ      = ((lEar!.z ?? 0) + (rEar!.z ?? 0)) / 2;
+    const shoulderZ = ((lShoulder!.z ?? 0) + (rShoulder!.z ?? 0)) / 2;
+    const zDiff     = shoulderZ - earZ;
+
     const leftGap  = Math.abs(lShoulder!.x - lEar!.x) / refWidth;
     const rightGap = Math.abs(rShoulder!.x - rEar!.x) / refWidth;
     const avgGap   = (leftGap + rightGap) / 2;
-    angles.shoulder_roll = avgGap * 100;
 
-    if (avgGap > 0.28) {
+    angles.shoulder_roll   = avgGap * 100;
+    angles.shoulder_z_diff = zDiff;
+
+    if (zDiff < -0.20 && avgGap > 0.28) {
       issues.push({ severity: "error", message: "어깨가 많이 말렸어요. 가슴을 펴고 어깨를 뒤로 당기세요." });
-      score -= 20;
-    } else if (avgGap > 0.16) {
-      issues.push({ severity: "warning", message: "어깨가 약간 말려 있어요. 어깨를 뒤로 살짝 펴보세요." });
       score -= 10;
+    } else if (zDiff < -0.12 && avgGap > 0.16) {
+      issues.push({ severity: "warning", message: "어깨가 약간 말려 있어요. 어깨를 뒤로 살짝 펴보세요." });
+      score -= 5;
     }
   }
 
@@ -113,11 +145,11 @@ export function analyzePosture(keypoints: Keypoint[]): {
     if (normalized > 0.13) {
       const side = diff > 0 ? "왼쪽" : "오른쪽";
       issues.push({ severity: "error", message: `골반이 ${side}으로 많이 기울었어요. 체중을 균등하게 나눠보세요.` });
-      score -= 18;
+      score -= 10;
     } else if (normalized > 0.07) {
       const side = diff > 0 ? "왼쪽" : "오른쪽";
       issues.push({ severity: "warning", message: `골반이 ${side}으로 약간 기울었어요.` });
-      score -= 9;
+      score -= 5;
     }
   }
 
@@ -130,11 +162,11 @@ export function analyzePosture(keypoints: Keypoint[]): {
     if (normalized > 0.13) {
       const side = diff > 0 ? "왼쪽" : "오른쪽";
       issues.push({ severity: "error", message: `어깨가 ${side}으로 많이 기울었어요.` });
-      score -= 15;
+      score -= 7;
     } else if (normalized > 0.07) {
       const side = diff > 0 ? "왼쪽" : "오른쪽";
       issues.push({ severity: "warning", message: `어깨가 ${side}으로 약간 기울었어요.` });
-      score -= 8;
+      score -= 3;
     }
   }
 
@@ -162,12 +194,54 @@ export function analyzePosture(keypoints: Keypoint[]): {
     const hipProtrusion = hipZ - (shoulderZ + ankleZ) / 2;
     angles.hip_protrusion_z = hipProtrusion;
 
-    if (hipProtrusion > 0.13 || lateralDev > 0.22) {
-      issues.push({ severity: "error", message: "척추가 과신전됐어요. 복부에 힘을 주고 중립 자세를 만드세요." });
-      score -= 20;
-    } else if (hipProtrusion > 0.07 || lateralDev > 0.13) {
-      issues.push({ severity: "warning", message: "허리가 약간 과신전돼 있어요. 복부를 살짝 조여보세요." });
-      score -= 10;
+    if (isSideView) {
+      if (hipProtrusion > 0.13) {
+        issues.push({ severity: "error", message: "척추가 과신전됐어요. 복부에 힘을 주고 중립 자세를 만드세요." });
+        score -= 13;
+      } else if (hipProtrusion > 0.07) {
+        issues.push({ severity: "warning", message: "허리가 약간 과신전돼 있어요. 복부를 살짝 조여보세요." });
+        score -= 7;
+      }
+    } else {
+      if (lateralDev > 0.22) {
+        issues.push({ severity: "error", message: "척추가 과신전됐어요. 복부에 힘을 주고 중립 자세를 만드세요." });
+        score -= 13;
+      } else if (lateralDev > 0.13) {
+        issues.push({ severity: "warning", message: "허리가 약간 과신전돼 있어요. 복부를 살짝 조여보세요." });
+        score -= 7;
+      }
+    }
+  }
+
+  // ── 6. 골반 경사: 외적으로 방향 판별 + 각도로 심각도 구분 (측면 전용) ────────
+  // cross > 0 → 전방경사, cross < 0 → 후방경사
+  if (
+    isSideView &&
+    visible(lShoulder) && visible(rShoulder) &&
+    visible(lHip)      && visible(rHip)      &&
+    visible(lKnee)     && visible(rKnee)
+  ) {
+    const shoulderMid = mid(lShoulder!, rShoulder!);
+    const hipMid      = mid(lHip!, rHip!);
+    const kneeMid     = mid(lKnee!, rKnee!);
+    const pelvicTiltAngle = calcAngle(shoulderMid, hipMid, kneeMid);
+    const cross = (kneeMid.x - shoulderMid.x) * (hipMid.y - shoulderMid.y)
+                - (kneeMid.y - shoulderMid.y) * (hipMid.x - shoulderMid.x);
+    angles.pelvic_tilt_angle = pelvicTiltAngle;
+    angles.pelvic_tilt_cross = cross;
+
+    if (cross > 0 && pelvicTiltAngle < 160) {
+      issues.push({ severity: "error", message: "골반이 앞으로 많이 기울었어요. 복부에 힘을 주고 골반을 중립으로 맞추세요." });
+      score -= 7;
+    } else if (cross > 0 && pelvicTiltAngle < 170) {
+      issues.push({ severity: "warning", message: "골반이 약간 앞으로 기울어 있어요. 허리를 살짝 세워보세요." });
+      score -= 3;
+    } else if (cross < 0 && pelvicTiltAngle < 160) {
+      issues.push({ severity: "error", message: "골반이 뒤로 많이 기울었어요. 허리를 곧게 세우고 골반을 중립으로 맞추세요." });
+      score -= 7;
+    } else if (cross < 0 && pelvicTiltAngle < 170) {
+      issues.push({ severity: "warning", message: "골반이 약간 뒤로 기울어 있어요. 허리를 살짝 세워보세요." });
+      score -= 3;
     }
   }
 
@@ -186,9 +260,10 @@ export function analyzePosture(keypoints: Keypoint[]): {
 // usePoseDetection에서 analyzeByExercise를 그대로 호출하므로 래퍼 유지
 export function analyzeByExercise(
   _exercise: string,
-  keypoints: Keypoint[]
+  keypoints: Keypoint[],
+  isSideView = false
 ): { angles: PoseAngles; score: number; issues: PostureIssue[]; signature: number[] } {
-  return analyzePosture(keypoints);
+  return analyzePosture(keypoints, isSideView);
 }
 
 // ── Skeleton Drawing ──────────────────────────────────────────────────────────

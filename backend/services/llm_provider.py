@@ -19,7 +19,7 @@ from typing import Optional
 LLM_PROVIDER   = os.getenv("LLM_PROVIDER",   "upstage").lower()
 EMBED_PROVIDER = os.getenv("EMBED_PROVIDER",  "upstage").lower()
 
-UPSTAGE_API_KEY   = os.getenv("UPSTAGE_API_KEY",   "")
+UPSTAGE_API_KEY   = os.getenv("UPSTAGE_LLM_KEY") or os.getenv("UPSTAGE_API_KEY", "")
 OPENAI_API_KEY    = os.getenv("OPENAI_API_KEY",    "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 OLLAMA_BASE_URL   = os.getenv("OLLAMA_BASE_URL",   "http://localhost:11434")

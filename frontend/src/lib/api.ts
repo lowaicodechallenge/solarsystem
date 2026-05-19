@@ -6,6 +6,79 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export type HealthInfo = {
+  user_profile?: {
+    age?: number | null;
+    gender?: string | null;
+    height_cm?: number | null;
+    weight_kg?: number | null;
+  };
+  medical_assessment?: {
+    diagnosis?: string[];
+    symptoms?: string[];
+    affected_body_parts?: string[];
+    exercise_restrictions?: string[];
+    pain_level?: number | null;
+    treatment_period?: string | null;
+    rehabilitation_stage?: string | null;
+    special_notes?: string | null;
+  };
+  body_composition?: {
+    inbody_score?: number | null;
+    weight_kg?: number | null;
+    skeletal_muscle_mass_kg?: number | null;
+    body_fat_mass_kg?: number | null;
+    body_fat_percentage?: number | null;
+    bmi?: number | null;
+    waist_hip_ratio?: number | null;
+    basal_metabolic_rate_kcal?: number | null;
+    visceral_fat_level?: number | null;
+    segmental_muscle_balance?: {
+      left_arm?: number | null;
+      right_arm?: number | null;
+      trunk?: number | null;
+      left_leg?: number | null;
+      right_leg?: number | null;
+    };
+  };
+  fitness_assessment?: {
+    cardiovascular_endurance?: { score?: number | null; grade?: string | null; measurement?: string | null };
+    muscular_strength?: { score?: number | null; grade?: string | null; measurement?: string | null };
+    muscular_endurance?: { score?: number | null; grade?: string | null; measurement?: string | null };
+    flexibility?: { score?: number | null; grade?: string | null; measurement?: string | null };
+    agility?: { score?: number | null; grade?: string | null; measurement?: string | null };
+    power?: { score?: number | null; grade?: string | null; measurement?: string | null };
+    balance?: { score?: number | null; grade?: string | null; measurement?: string | null };
+    overall_fitness_level?: string | null;
+  };
+};
+
+export type NFAVideo = {
+  source: "NFA_VIDEO_API";
+  title: string;
+  description: string;
+  video_url: string;
+  thumbnail_url: string;
+  target_body_part: string[];
+  purpose_tags: string[];
+  level: "beginner" | "intermediate" | "advanced";
+  intensity: "low" | "medium" | "high";
+  place: "home" | "outdoor" | "gym";
+  equipment: string;
+  duration_min: number;
+  avoid_if: string[];
+  verification_status: "needs_review" | "approved" | "hidden";
+  age_group: string;
+};
+
+export type ProcessDocumentResult = {
+  document_category: "inbody" | "national_fitness_100" | "rehabilitation_guide" | "health_checkup" | "other";
+  parsed_text: string;
+  page_count: number;
+  health_info: HealthInfo;
+  risk_tags: string[];
+};
+
 export const api = {
   getPoseHistory: (userId: string) =>
     fetchJson(`/api/pose/history/${encodeURIComponent(userId)}`),
@@ -88,8 +161,27 @@ export const api = {
     side_score: number;
     symptoms: string;
     doc_text: string;
+    health_info?: HealthInfo;
+    risk_tags?: string[];
   }) =>
     fetchJson("/api/workout/recommend", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }),
+
+  getNFAVideos: (data: {
+    age?: number;
+    goal?: string;
+    pain_area?: string[];
+    place?: string;
+    level?: string;
+    available_time_min?: number;
+    health_info?: HealthInfo;
+    risk_tags?: string[];
+    max_results?: number;
+  }) =>
+    fetchJson<{ videos: NFAVideo[]; count: number }>("/api/workout/nfa-videos", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
@@ -103,11 +195,16 @@ export const api = {
   ocrDocument: async (file: File): Promise<{ text: string }> => {
     const form = new FormData();
     form.append("file", file);
-    const res = await fetch(`${BASE_URL}/api/workout/ocr`, {
-      method: "POST",
-      body: form,
-    });
+    const res = await fetch(`${BASE_URL}/api/workout/ocr`, { method: "POST", body: form });
     if (!res.ok) throw new Error(`OCR failed: ${res.status}`);
+    return res.json();
+  },
+
+  processDocument: async (file: File): Promise<ProcessDocumentResult> => {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`${BASE_URL}/api/workout/process-document`, { method: "POST", body: form });
+    if (!res.ok) throw new Error(`Document processing failed: ${res.status}`);
     return res.json();
   },
 
