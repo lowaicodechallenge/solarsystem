@@ -27,6 +27,7 @@ wheels/
 .installed.cfg
 *.egg
 venv/
+.venv/
 ENV/
 
 # Node.js / Frontend

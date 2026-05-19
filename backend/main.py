@@ -1,4 +1,14 @@
 import os
+import sys
+
+# Windows 한국어 콘솔(cp949)에서 이모지/유니코드 print가 UnicodeEncodeError로
+# 서버를 죽이는 것을 방지 — stdout/stderr를 UTF-8로 재설정.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")
+    except (AttributeError, ValueError):
+        pass
+
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,7 +18,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from database import init_db
-from routers import pose, workout, battle, calendar_router, chat
+from routers import pose, workout, battle, calendar_router, chat, report
 from services.matching_service import update_battle_score
 
 # Socket.IO for real-time battle
@@ -48,6 +58,7 @@ app.include_router(workout.router)
 app.include_router(battle.router)
 app.include_router(calendar_router.router)
 app.include_router(chat.router)
+app.include_router(report.router)
 
 
 @app.get("/")

@@ -17,6 +17,7 @@ from services.upstage_service import (
     remove_pii,
     remove_pii_text,
     apply_risk_tags,
+    risk_tags_from_text,
 )
 from services.rag_service import search_exercises
 
@@ -101,6 +102,11 @@ async def recommend_exercises(req: RecommendRequest, db: AsyncSession = Depends(
         n_results=5,
     )
 
+    # 문서에서 온 risk_tags + 증상·문서원문 자유 텍스트에서 추출한 risk_tags 합산
+    merged_risk_tags = sorted(
+        set(req.risk_tags) | set(risk_tags_from_text(symptoms, req.doc_text))
+    )
+
     analysis = await analyze_current_state(
         posture_issues=req.posture_issues,
         front_score=req.front_score,
@@ -109,7 +115,7 @@ async def recommend_exercises(req: RecommendRequest, db: AsyncSession = Depends(
         doc_text=req.doc_text,
         rag_exercises=rag_exercises,
         health_info=req.health_info,
-        risk_tags=req.risk_tags,
+        risk_tags=merged_risk_tags,
     )
 
     return {
