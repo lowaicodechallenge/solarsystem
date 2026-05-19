@@ -4,21 +4,21 @@ import { api, ProcessDocumentResult, NFAVideo } from "@/lib/api";
 import { USER_ID } from "@/lib/utils";
 
 const CATEGORY_LABELS: Record<string, string> = {
-  inbody:              "인바디 결과지",
-  national_fitness_100:"국민체력100 결과지",
-  rehabilitation_guide:"재활 안내문",
-  health_checkup:      "건강검진표",
-  other:               "기타 문서",
+  inbody:               "인바디 결과지",
+  national_fitness_100: "국민체력100 결과지",
+  rehabilitation_guide: "재활 안내문",
+  health_checkup:       "건강검진표",
+  other:                "기타 문서",
 };
 
 const RISK_TAG_LABELS: Record<string, string> = {
-  avoid_high_intensity:       "고강도 운동 금지",
-  avoid_jump:                 "점프 동작 금지",
-  avoid_spinal_flexion_load:  "허리 굴곡 부하 금지",
-  avoid_impact:               "충격 운동 금지",
-  avoid_overhead:             "오버헤드 동작 금지",
-  monitor_blood_sugar:        "혈당 모니터링 필요",
-  monitor_breathing:          "호흡 모니터링 필요",
+  avoid_high_intensity:      "고강도 운동 금지",
+  avoid_jump:                "점프 동작 금지",
+  avoid_spinal_flexion_load: "허리 굴곡 부하 금지",
+  avoid_impact:              "충격 운동 금지",
+  avoid_overhead:            "오버헤드 동작 금지",
+  monitor_blood_sugar:       "혈당 모니터링 필요",
+  monitor_breathing:         "호흡 모니터링 필요",
 };
 
 type PostureIssue = { severity: string; message: string };
@@ -84,12 +84,10 @@ function ExercisePageInner() {
     setNfaVideos([]);
     setDocResults([]);
 
-    // Step 1: 문서 분류 + 정보 추출
     let docText = "";
     let mergedHealthInfo: ProcessDocumentResult["health_info"] = {};
     let allRiskTags: string[] = [];
 
-    // Dashboard에서 저장된 문서 먼저 적용
     for (const r of storedDocResults) {
       if (r.parsed_text) docText += r.parsed_text + "\n";
       allRiskTags = [...new Set([...allRiskTags, ...r.risk_tags])];
@@ -110,10 +108,8 @@ function ExercisePageInner() {
       }
     }
 
-    // Step 2: AI 분석 + NFA 영상 병렬 호출
     setLoadingStep("AI 분석 및 운동 영상 불러오는 중...");
 
-    // 자세 이슈에서 통증 부위 추출
     const painArea: string[] = [];
     for (const issue of allIssues) {
       if (issue.includes("거북목") || issue.includes("머리") || issue.includes("목")) painArea.push("neck");
@@ -132,7 +128,6 @@ function ExercisePageInner() {
     const level = avgScore >= 75 ? "intermediate" : "beginner";
     const age = mergedHealthInfo.user_profile?.age ?? 30;
 
-    // Step 2-A: AI 분석 먼저
     setLoadingStep("AI 상태 분석 중...");
     let result: { analysis: Analysis; exercises: unknown[] };
     try {
@@ -154,7 +149,6 @@ function ExercisePageInner() {
     }
     setAnalysis(result.analysis);
 
-    // Step 2-B: 분석 결과를 goal로 넘겨 NFA 영상 검색
     setLoadingStep("분석 결과 기반 운동 영상 불러오는 중...");
     const analysisGoal = [
       ...(result.analysis.main_concerns ?? []),
@@ -181,80 +175,111 @@ function ExercisePageInner() {
   const hasPosture = !!posture?.front || !!posture?.side;
 
   return (
-    <div className="min-h-screen bg-[#f8f9ff] px-6 pb-16">
+    <div className="min-h-screen bg-[#050505] px-5 pb-16">
       {/* Header */}
       <div className="py-6">
-        <h1 className="text-[32px] font-bold text-[#101c2a] leading-10">운동 시작</h1>
-        <p className="text-sm text-[#42484a] mt-1">AI가 내 자세·증상·임상 자료를 분석해 맞춤 운동을 추천합니다.</p>
+        <h1 className="font-oswald text-3xl font-bold text-[#e5e2e1] uppercase tracking-tight">
+          운동 시작
+        </h1>
+        <p className="text-sm text-[#c7c4da]/50 mt-1">
+          AI가 내 자세·증상·임상 자료를 분석해 맞춤 운동을 추천합니다.
+        </p>
       </div>
 
-      <div className="flex flex-col gap-6 max-w-3xl mx-auto w-full">
+      <div className="flex flex-col gap-5 max-w-3xl mx-auto w-full">
         {/* Input summary */}
-        <div className="bg-white border border-[#c1c7c9] rounded-lg p-5 flex flex-col gap-4">
-          <h2 className="text-base font-semibold text-[#101c2a]">분석에 사용할 데이터</h2>
+        <div className="glass-card p-5 flex flex-col gap-5">
+          <h2 className="text-sm font-semibold text-[#e5e2e1] flex items-center gap-2">
+            <span
+              className="material-symbols-outlined text-[#c3c0ff]"
+              style={{ fontSize: "18px", fontVariationSettings: "'FILL' 1" }}
+            >
+              analytics
+            </span>
+            분석에 사용할 데이터
+          </h2>
 
           {/* Posture */}
-          <div className="flex flex-col gap-1.5">
-            <p className="text-xs font-medium text-[#42484a] flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-[#2f628c]" style={{ fontSize: "16px" }}>accessibility_new</span>
+          <div className="flex flex-col gap-2">
+            <p className="text-[10px] font-semibold text-[#c3c0ff]/60 uppercase tracking-widest flex items-center gap-1.5">
+              <span className="material-symbols-outlined" style={{ fontSize: "14px" }}>accessibility_new</span>
               자세 분석 결과
             </p>
             {hasPosture ? (
               <div className="flex flex-wrap gap-2">
                 {posture!.front && (
-                  <span className="px-2.5 py-1 bg-[#eff4ff] border border-[#c1c7c9] rounded-full text-xs text-[#235881]">
+                  <span className="px-2.5 py-1 bg-[#4a3aff]/20 border border-[#c3c0ff]/30 rounded-full text-xs text-[#c3c0ff]">
                     정면 {posture!.front.score.toFixed(0)}점
                   </span>
                 )}
                 {posture!.side && (
-                  <span className="px-2.5 py-1 bg-[#eff4ff] border border-[#c1c7c9] rounded-full text-xs text-[#235881]">
+                  <span className="px-2.5 py-1 bg-[#4a3aff]/20 border border-[#c3c0ff]/30 rounded-full text-xs text-[#c3c0ff]">
                     측면 {posture!.side.score.toFixed(0)}점
                   </span>
                 )}
-                {allIssues.length > 0 && allIssues.map((msg, i) => (
-                  <span key={i} className="px-2.5 py-1 bg-[#ffdad6] border border-[#ffb4ab] rounded-full text-xs text-[#93000a]">
+                {allIssues.map((msg, i) => (
+                  <span
+                    key={i}
+                    className="px-2.5 py-1 bg-[#ffb4ab]/15 border border-[#ffb4ab]/40 rounded-full text-xs text-[#ffb4ab]"
+                  >
                     {msg.length > 20 ? msg.slice(0, 20) + "…" : msg}
                   </span>
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-[#72787a] italic">
-                자세 분석 결과 없음 — 먼저{" "}
-                <a href="/scanpose/scan" className="text-[#2f628c] hover:underline">자세 분석</a>을 진행해주세요.
+              <p className="text-xs text-[#c7c4da]/35 italic">
+                자세 분석 결과 없음 —{" "}
+                <a href="/scanpose/scan" className="text-[#c3c0ff]/60 hover:text-[#c3c0ff] transition-colors">
+                  자세 분석
+                </a>
+                을 먼저 진행해주세요.
               </p>
             )}
           </div>
 
           {/* Symptoms */}
-          <div className="flex flex-col gap-1.5">
-            <p className="text-xs font-medium text-[#42484a] flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-[#2f628c]" style={{ fontSize: "16px" }}>clinical_notes</span>
+          <div className="flex flex-col gap-2">
+            <p className="text-[10px] font-semibold text-[#c3c0ff]/60 uppercase tracking-widest flex items-center gap-1.5">
+              <span className="material-symbols-outlined" style={{ fontSize: "14px" }}>clinical_notes</span>
               증상/불편사항
             </p>
             {symptoms ? (
               <div className="flex flex-wrap gap-1.5">
-                {symptoms.split(",").map((s) => s.trim()).filter(Boolean).map((s) => (
-                  <span key={s} className="px-2.5 py-1 bg-[#cee5ff] text-[#235881] rounded-full text-xs">{s}</span>
-                ))}
+                {symptoms
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter(Boolean)
+                  .map((s) => (
+                    <span
+                      key={s}
+                      className="px-2.5 py-1 bg-[#4a3aff]/20 border border-[#c3c0ff]/30 text-[#c3c0ff] rounded-full text-xs"
+                    >
+                      {s}
+                    </span>
+                  ))}
               </div>
             ) : (
-              <p className="text-xs text-[#72787a] italic">증상 없음 — Dashboard에서 입력할 수 있습니다.</p>
+              <p className="text-xs text-[#c7c4da]/35 italic">
+                증상 없음 — Dashboard에서 입력할 수 있습니다.
+              </p>
             )}
           </div>
 
           {/* File upload */}
-          <div className="flex flex-col gap-1.5">
-            <p className="text-xs font-medium text-[#42484a] flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-[#2f628c]" style={{ fontSize: "16px" }}>upload_file</span>
+          <div className="flex flex-col gap-2">
+            <p className="text-[10px] font-semibold text-[#c3c0ff]/60 uppercase tracking-widest flex items-center gap-1.5">
+              <span className="material-symbols-outlined" style={{ fontSize: "14px" }}>upload_file</span>
               임상 자료 (선택)
             </p>
 
             {/* Dashboard에서 불러온 문서 */}
             {storedDocResults.length > 0 && (
-              <div className="flex flex-col gap-1.5 p-2.5 bg-[#e8f5e9] border border-[#a5d6a7] rounded-lg">
+              <div className="flex flex-col gap-2 p-3 bg-[#00e293]/10 border border-[#00e293]/30 rounded-xl">
                 <div className="flex items-center justify-between">
-                  <p className="text-[10px] text-[#2e7d32] font-medium flex items-center gap-1">
-                    <span className="material-symbols-outlined" style={{ fontSize: "12px" }}>check_circle</span>
+                  <p className="text-[10px] text-[#00e293] font-semibold flex items-center gap-1">
+                    <span className="material-symbols-outlined" style={{ fontSize: "12px" }}>
+                      check_circle
+                    </span>
                     Dashboard에서 불러온 문서
                   </p>
                   <button
@@ -262,31 +287,48 @@ function ExercisePageInner() {
                       localStorage.removeItem("fitai_health_documents");
                       setStoredDocResults([]);
                     }}
-                    className="text-[10px] text-[#72787a] hover:text-red-500 transition-colors"
+                    className="text-[10px] text-[#c7c4da]/40 hover:text-[#ffb4ab] transition-colors"
                   >
                     초기화
                   </button>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {storedDocResults.map((r, i) => (
-                    <span key={i} className="px-2 py-0.5 bg-white border border-[#a5d6a7] rounded-full text-[10px] text-[#1b5e20]">
+                    <span
+                      key={i}
+                      className="px-2 py-0.5 bg-[#00e293]/10 border border-[#00e293]/30 rounded-full text-[10px] text-[#00e293]"
+                    >
                       {CATEGORY_LABELS[r.document_category] ?? r.document_category}
                     </span>
                   ))}
                 </div>
               </div>
             )}
+
             <div
-              className={`flex items-center gap-3 p-3 border border-dashed rounded-lg cursor-pointer transition-colors ${
-                isDragging ? "border-[#2f628c] bg-[#cee5ff]/30" : "border-[#c1c7c9] bg-[#f8f9ff] hover:border-[#2f628c]"
+              className={`flex items-center gap-3 p-3.5 border border-dashed rounded-xl cursor-pointer transition-all ${
+                isDragging
+                  ? "border-[#4a3aff] bg-[#4a3aff]/10"
+                  : "border-[#c3c0ff]/20 bg-white/[0.02] hover:border-[#c3c0ff]/40 hover:bg-white/[0.04]"
               }`}
               onClick={() => fileInputRef.current?.click()}
               onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
               onDragLeave={() => setIsDragging(false)}
-              onDrop={(e) => { e.preventDefault(); setIsDragging(false); handleFiles(e.dataTransfer.files); }}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragging(false);
+                handleFiles(e.dataTransfer.files);
+              }}
             >
-              <span className="material-symbols-outlined text-[#42484a]" style={{ fontSize: "20px" }}>upload_file</span>
-              <p className="text-xs text-[#42484a]">PDF, JPG, PNG, WebP — 드래그하거나 클릭해서 업로드</p>
+              <span
+                className="material-symbols-outlined text-[#c3c0ff]/50"
+                style={{ fontSize: "20px" }}
+              >
+                upload_file
+              </span>
+              <p className="text-xs text-[#c7c4da]/40">
+                PDF, JPG, PNG, WebP — 드래그하거나 클릭해서 업로드
+              </p>
             </div>
             <input
               ref={fileInputRef}
@@ -296,17 +338,24 @@ function ExercisePageInner() {
               className="hidden"
               onChange={(e) => handleFiles(e.target.files)}
             />
+
             {uploadedFiles.length > 0 && (
               <ul className="flex flex-col gap-1 mt-1">
                 {uploadedFiles.map((f, i) => (
-                  <li key={i} className="flex items-center gap-2 px-3 py-1.5 bg-[#eff4ff] border border-[#c1c7c9] rounded-lg text-xs text-[#101c2a]">
-                    <span className="material-symbols-outlined text-[#2f628c]" style={{ fontSize: "14px" }}>
+                  <li
+                    key={i}
+                    className="flex items-center gap-2 px-3 py-2 bg-white/[0.04] border border-white/10 rounded-lg text-xs text-[#c7c4da]"
+                  >
+                    <span
+                      className="material-symbols-outlined text-[#c3c0ff]/60"
+                      style={{ fontSize: "14px" }}
+                    >
                       {f.type === "application/pdf" ? "picture_as_pdf" : "image"}
                     </span>
                     <span className="flex-1 truncate">{f.name}</span>
                     <button
                       onClick={() => setUploadedFiles((prev) => prev.filter((_, j) => j !== i))}
-                      className="text-[#72787a] hover:text-red-500 transition-colors"
+                      className="text-[#c7c4da]/30 hover:text-[#ffb4ab] transition-colors"
                     >
                       <span className="material-symbols-outlined" style={{ fontSize: "14px" }}>close</span>
                     </button>
@@ -324,62 +373,74 @@ function ExercisePageInner() {
                   const medical = r.health_info.medical_assessment;
                   const profile = r.health_info.user_profile;
                   return (
-                    <div key={i} className="bg-[#f0f7ff] border border-[#9ecefd] rounded-lg p-3 flex flex-col gap-2">
+                    <div
+                      key={i}
+                      className="bg-[#4a3aff]/10 border border-[#c3c0ff]/20 rounded-xl p-3 flex flex-col gap-2"
+                    >
                       <div className="flex items-center gap-2">
-                        <span className="material-symbols-outlined text-[#2f628c]" style={{ fontSize: "16px" }}>description</span>
-                        <span className="text-xs font-bold text-[#235881]">
+                        <span
+                          className="material-symbols-outlined text-[#c3c0ff]"
+                          style={{ fontSize: "16px" }}
+                        >
+                          description
+                        </span>
+                        <span className="text-xs font-bold text-[#c3c0ff]">
                           {uploadedFiles[i]?.name ?? `문서 ${i + 1}`}
                         </span>
-                        <span className="ml-auto px-2 py-0.5 bg-[#2f628c] text-white text-[10px] rounded-full">
+                        <span className="ml-auto px-2 py-0.5 bg-[#4a3aff] text-white text-[10px] rounded-full">
                           {CATEGORY_LABELS[r.document_category] ?? r.document_category}
                         </span>
                       </div>
 
-                      {/* 추출 지표 */}
                       <div className="flex flex-wrap gap-1.5">
                         {profile?.age && (
-                          <span className="px-2 py-0.5 bg-white border border-[#c1c7c9] rounded text-[10px] text-[#42484a]">
-                            {profile.age}세 {profile.gender === "male" ? "남" : profile.gender === "female" ? "여" : ""}
+                          <span className="px-2 py-0.5 bg-white/5 border border-white/10 rounded text-[10px] text-[#c7c4da]/70">
+                            {profile.age}세{" "}
+                            {profile.gender === "male" ? "남" : profile.gender === "female" ? "여" : ""}
                           </span>
                         )}
                         {body?.body_fat_percentage != null && (
-                          <span className="px-2 py-0.5 bg-white border border-[#c1c7c9] rounded text-[10px] text-[#42484a]">
+                          <span className="px-2 py-0.5 bg-white/5 border border-white/10 rounded text-[10px] text-[#c7c4da]/70">
                             체지방 {body.body_fat_percentage}%
                           </span>
                         )}
                         {body?.skeletal_muscle_mass_kg != null && (
-                          <span className="px-2 py-0.5 bg-white border border-[#c1c7c9] rounded text-[10px] text-[#42484a]">
+                          <span className="px-2 py-0.5 bg-white/5 border border-white/10 rounded text-[10px] text-[#c7c4da]/70">
                             골격근 {body.skeletal_muscle_mass_kg}kg
                           </span>
                         )}
                         {body?.inbody_score != null && (
-                          <span className="px-2 py-0.5 bg-white border border-[#c1c7c9] rounded text-[10px] text-[#42484a]">
+                          <span className="px-2 py-0.5 bg-white/5 border border-white/10 rounded text-[10px] text-[#c7c4da]/70">
                             인바디 {body.inbody_score}점
                           </span>
                         )}
                         {fitness?.overall_fitness_level && (
-                          <span className="px-2 py-0.5 bg-white border border-[#c1c7c9] rounded text-[10px] text-[#42484a]">
+                          <span className="px-2 py-0.5 bg-white/5 border border-white/10 rounded text-[10px] text-[#c7c4da]/70">
                             종합체력 {fitness.overall_fitness_level}
                           </span>
                         )}
                         {medical?.diagnosis && medical.diagnosis.length > 0 && (
-                          <span className="px-2 py-0.5 bg-white border border-[#c1c7c9] rounded text-[10px] text-[#42484a]">
+                          <span className="px-2 py-0.5 bg-white/5 border border-white/10 rounded text-[10px] text-[#c7c4da]/70">
                             진단: {medical.diagnosis.slice(0, 2).join(", ")}
                           </span>
                         )}
                         {medical?.rehabilitation_stage && (
-                          <span className="px-2 py-0.5 bg-white border border-[#c1c7c9] rounded text-[10px] text-[#42484a]">
+                          <span className="px-2 py-0.5 bg-white/5 border border-white/10 rounded text-[10px] text-[#c7c4da]/70">
                             재활 {medical.rehabilitation_stage}
                           </span>
                         )}
                       </div>
 
-                      {/* 위험 태그 */}
                       {r.risk_tags.length > 0 && (
                         <div className="flex flex-wrap gap-1">
                           {r.risk_tags.map((tag) => (
-                            <span key={tag} className="px-2 py-0.5 bg-[#ffdad6] border border-[#ffb4ab] rounded text-[10px] text-[#93000a] flex items-center gap-1">
-                              <span className="material-symbols-outlined" style={{ fontSize: "10px" }}>warning</span>
+                            <span
+                              key={tag}
+                              className="px-2 py-0.5 bg-[#ffb4ab]/15 border border-[#ffb4ab]/40 rounded text-[10px] text-[#ffb4ab] flex items-center gap-1"
+                            >
+                              <span className="material-symbols-outlined" style={{ fontSize: "10px" }}>
+                                warning
+                              </span>
                               {RISK_TAG_LABELS[tag] ?? tag}
                             </span>
                           ))}
@@ -397,11 +458,17 @@ function ExercisePageInner() {
         <button
           onClick={handleAnalyze}
           disabled={loading}
-          className="w-full bg-[#2f628c] text-white py-3.5 rounded-lg text-sm font-bold hover:opacity-90 transition-opacity disabled:opacity-60 flex items-center justify-center gap-2"
+          className="w-full py-4 rounded-xl text-sm font-bold text-white disabled:opacity-50 flex items-center justify-center gap-2 transition-opacity hover:opacity-90"
+          style={{ background: "linear-gradient(135deg, #1d00a5, #4a3aff 60%, #552ba0)" }}
         >
           {loading ? (
             <>
-              <span className="animate-spin material-symbols-outlined" style={{ fontSize: "18px" }}>progress_activity</span>
+              <span
+                className="animate-spin material-symbols-outlined"
+                style={{ fontSize: "18px" }}
+              >
+                progress_activity
+              </span>
               {loadingStep || "분석 중..."}
             </>
           ) : (
@@ -414,17 +481,27 @@ function ExercisePageInner() {
 
         {/* Analysis result */}
         {analysis && (
-          <div className="bg-[#101c2a] rounded-lg p-5 flex flex-col gap-3">
+          <div className="glass-card p-5 flex flex-col gap-3">
             <div className="flex items-center gap-2 mb-1">
-              <span className="material-symbols-outlined text-[#9ecefd]" style={{ fontSize: "20px" }}>psychology</span>
-              <h2 className="text-sm font-bold text-[#9ecefd] uppercase tracking-wider">AI 현재 상태 분석</h2>
+              <span
+                className="material-symbols-outlined text-[#c3c0ff]"
+                style={{ fontSize: "20px", fontVariationSettings: "'FILL' 1" }}
+              >
+                psychology
+              </span>
+              <h2 className="text-sm font-bold text-[#c3c0ff] uppercase tracking-wider">
+                AI 현재 상태 분석
+              </h2>
             </div>
-            <p className="text-sm text-white leading-relaxed">{analysis.state_summary}</p>
+            <p className="text-sm text-[#e5e2e1] leading-relaxed">{analysis.state_summary}</p>
 
             {analysis.main_concerns.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-1">
                 {analysis.main_concerns.map((c, i) => (
-                  <span key={i} className="px-2.5 py-1 bg-red-500/20 border border-red-500/40 rounded-full text-xs text-red-300">
+                  <span
+                    key={i}
+                    className="px-2.5 py-1 bg-[#ffb4ab]/15 border border-[#ffb4ab]/40 rounded-full text-xs text-[#ffb4ab]"
+                  >
                     {c}
                   </span>
                 ))}
@@ -433,21 +510,29 @@ function ExercisePageInner() {
 
             {analysis.risk_areas.length > 0 && (
               <p className="text-xs text-amber-300 flex items-start gap-1.5 mt-1">
-                <span className="material-symbols-outlined shrink-0" style={{ fontSize: "14px" }}>warning</span>
+                <span className="material-symbols-outlined shrink-0" style={{ fontSize: "14px" }}>
+                  warning
+                </span>
                 주의 부위: {analysis.risk_areas.join(", ")}
               </p>
             )}
 
-            <p className="text-xs text-[#9ecefd]/70 mt-1 border-t border-white/10 pt-3">{analysis.recommendation_note}</p>
+            <p className="text-xs text-[#c7c4da]/50 mt-1 border-t border-white/5 pt-3">
+              {analysis.recommendation_note}
+            </p>
           </div>
         )}
 
         {/* 국민체력100 추천 운동 영상 */}
         {nfaVideos.length > 0 && (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-4">
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-semibold text-[#101c2a]">추천 운동 영상</h2>
-              <span className="px-2 py-0.5 bg-[#eff4ff] text-[#235881] text-[10px] rounded-full">국민체력100</span>
+              <h2 className="font-oswald text-xl font-bold text-[#e5e2e1] uppercase">
+                추천 운동 영상
+              </h2>
+              <span className="px-2 py-0.5 bg-[#4a3aff]/30 text-[#c3c0ff] text-[10px] rounded-full border border-[#c3c0ff]/30">
+                국민체력100
+              </span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {nfaVideos.map((v, i) => (
@@ -456,23 +541,31 @@ function ExercisePageInner() {
                   href={v.video_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="bg-white border border-[#c1c7c9] rounded-lg overflow-hidden flex flex-col group hover:border-[#2f628c] transition-colors"
+                  className="glass-card overflow-hidden flex flex-col group hover:border-[#4a3aff]/60 transition-colors"
                 >
                   {/* 썸네일 */}
-                  <div className="relative aspect-video bg-[#f8f9ff] overflow-hidden">
+                  <div className="relative aspect-video bg-[#0d0d0d] overflow-hidden">
                     {v.thumbnail_url ? (
                       <img
                         src={v.thumbnail_url}
                         alt={v.title}
-                        className="w-full h-full object-cover group-hover:opacity-90 transition-opacity"
+                        className="w-full h-full object-cover group-hover:opacity-80 transition-opacity"
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
-                        <span className="material-symbols-outlined text-[#c1c7c9]" style={{ fontSize: "40px" }}>play_circle</span>
+                        <span
+                          className="material-symbols-outlined text-[#c3c0ff]/20"
+                          style={{ fontSize: "40px" }}
+                        >
+                          play_circle
+                        </span>
                       </div>
                     )}
                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <span className="material-symbols-outlined text-white bg-black/60 rounded-full p-1" style={{ fontSize: "32px" }}>
+                      <span
+                        className="material-symbols-outlined text-white bg-[#050505]/70 rounded-full p-1"
+                        style={{ fontSize: "32px" }}
+                      >
                         play_circle
                       </span>
                     </div>
@@ -480,18 +573,23 @@ function ExercisePageInner() {
 
                   {/* 영상 정보 */}
                   <div className="p-3 flex flex-col gap-2">
-                    <p className="text-xs font-semibold text-[#101c2a] line-clamp-2 leading-snug">{v.title}</p>
+                    <p className="text-xs font-semibold text-[#e5e2e1] line-clamp-2 leading-snug">
+                      {v.title}
+                    </p>
                     <div className="flex flex-wrap gap-1">
                       {v.target_body_part.slice(0, 3).map((part) => (
-                        <span key={part} className="px-1.5 py-0.5 bg-[#cee5ff] text-[#235881] text-[10px] rounded-full">
+                        <span
+                          key={part}
+                          className="px-1.5 py-0.5 bg-[#4a3aff]/20 border border-[#c3c0ff]/20 text-[#c3c0ff] text-[10px] rounded-full"
+                        >
                           {part}
                         </span>
                       ))}
-                      <span className="px-1.5 py-0.5 bg-[#eff4ff] text-[#235881] text-[10px] rounded-full">
+                      <span className="px-1.5 py-0.5 bg-white/5 border border-white/10 text-[#c7c4da]/60 text-[10px] rounded-full">
                         {v.level === "beginner" ? "초급" : v.level === "intermediate" ? "중급" : "고급"}
                       </span>
                       {v.duration_min > 0 && (
-                        <span className="px-1.5 py-0.5 bg-[#f8f9ff] border border-[#c1c7c9] text-[#42484a] text-[10px] rounded-full">
+                        <span className="px-1.5 py-0.5 bg-white/5 border border-white/10 text-[#c7c4da]/60 text-[10px] rounded-full">
                           {v.duration_min}분
                         </span>
                       )}
@@ -509,7 +607,11 @@ function ExercisePageInner() {
 
 export default function ExercisePage() {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-[#42484a]">로딩 중...</div>}>
+    <Suspense
+      fallback={
+        <div className="p-8 text-center text-[#c7c4da]/40">로딩 중...</div>
+      }
+    >
       <ExercisePageInner />
     </Suspense>
   );
