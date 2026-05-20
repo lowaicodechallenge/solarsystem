@@ -294,3 +294,9 @@ solarsystem/
                                                 │
                          [유사 유저 대결 매칭 (Socket.IO)]
 ```
+## 변경사항
+
+### USER_ID 하드코딩 수정 (fix/user-id 브랜치)
+- 문제: 모든 사용자가 "user_default" 동일 ID를 사용해 다른 사용자 데이터가 보이는 오류
+- 수정: 접속 시 고유 ID 자동 생성 (localStorage 저장)
+- 적용: 기존 사용자는 브라우저 localStorage 지우고 새로고침
