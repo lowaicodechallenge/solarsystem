@@ -96,6 +96,18 @@ async def recommend_exercises(req: RecommendRequest, db: AsyncSession = Depends(
         user = await db.get(User, req.user_id)
         symptoms = user.symptoms if user else ""
 
+    has_doc  = bool(req.health_info or req.doc_text)
+    has_pose = bool(req.posture_issues or req.front_score or req.side_score)
+
+    if has_doc and has_pose:
+        analysis_mode = "full"
+    elif has_doc:
+        analysis_mode = "doc_only"
+    elif has_pose:
+        analysis_mode = "pose_only"
+    else:
+        analysis_mode = "general"
+
     rag_exercises = search_exercises(
         symptoms=symptoms + " " + req.doc_text,
         posture_issues=req.posture_issues,
@@ -116,10 +128,12 @@ async def recommend_exercises(req: RecommendRequest, db: AsyncSession = Depends(
         rag_exercises=rag_exercises,
         health_info=req.health_info,
         risk_tags=merged_risk_tags,
+        analysis_mode=analysis_mode,
     )
 
     return {
         "analysis": analysis,
+        "analysis_mode": analysis_mode,
         "exercises": [
             {
                 "id": ex["id"],

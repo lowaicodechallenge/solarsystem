@@ -56,76 +56,32 @@ _RISK_TAG_MAP = {
     "어깨":   "avoid_overhead",
 }
 
-# ── 카테고리별 Information Extract 스키마 ────────────────────────────────────
-_USER_PROFILE_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "age":       {"type": ["integer", "null"], "description": "나이 (숫자만)"},
-        "gender":    {"type": ["string",  "null"], "description": "성별 (male/female/null)"},
-        "height_cm": {"type": ["number",  "null"], "description": "키 (단위: cm)"},
-        "weight_kg": {"type": ["number",  "null"], "description": "몸무게 (단위: kg)"},
-    },
-}
-
-_MEDICAL_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "diagnosis":            {"type": "array",  "items": {"type": "string"}, "description": "진단명 목록"},
-        "symptoms":             {"type": "array",  "items": {"type": "string"}, "description": "증상 및 불편사항 목록"},
-        "affected_body_parts":  {"type": "array",  "items": {"type": "string"}, "description": "영향 받는 신체 부위 목록"},
-        "exercise_restrictions":{"type": "array",  "items": {"type": "string"}, "description": "운동 제한·금기 사항 목록"},
-        "pain_level":           {"type": ["integer","null"], "description": "통증 수준 (0~10)"},
-        "treatment_period":     {"type": ["string", "null"], "description": "치료 또는 회복 기간"},
-        "rehabilitation_stage": {"type": ["string", "null"], "description": "재활 단계 (초기/중기/후기 등)"},
-        "special_notes":        {"type": ["string", "null"], "description": "기타 특이 사항"},
-    },
-}
-
+# ── 인바디 체성분 Information Extract 스키마 ──────────────────────────────────
 _BODY_COMPOSITION_SCHEMA = {
     "type": "object",
     "properties": {
-        "inbody_score":            {"type": ["number", "null"], "description": "인바디 점수"},
-        "weight_kg":               {"type": ["number", "null"], "description": "체중 (단위: kg)"},
-        "skeletal_muscle_mass_kg": {"type": ["number", "null"], "description": "골격근량 (단위: kg)"},
-        "body_fat_mass_kg":        {"type": ["number", "null"], "description": "체지방량 (단위: kg)"},
-        "body_fat_percentage":     {"type": ["number", "null"], "description": "체지방률 (단위: %)"},
-        "bmi":                     {"type": ["number", "null"], "description": "BMI 지수"},
-        "waist_hip_ratio":         {"type": ["number", "null"], "description": "허리-엉덩이 비율"},
-        "basal_metabolic_rate_kcal":{"type": ["number", "null"], "description": "기초대사량 (단위: kcal)"},
-        "visceral_fat_level":      {"type": ["number", "null"], "description": "내장지방 레벨"},
+        # 핵심 필드 — 모든 인바디 기종에 공통
+        "weight_kg":               {"type": ["number", "null"], "description": "체중 (kg)"},
+        "skeletal_muscle_mass_kg": {"type": ["number", "null"], "description": "골격근량 (kg)"},
+        "body_fat_mass_kg":        {"type": ["number", "null"], "description": "체지방량 (kg)"},
+        "body_fat_percentage":     {"type": ["number", "null"], "description": "체지방률 (%)"},
+        "bmi":                     {"type": ["number", "null"], "description": "BMI"},
+        # 기종별로 있을 수도 없을 수도 있는 필드
+        "inbody_score":             {"type": ["number", "null"], "description": "인바디 점수 (없으면 null)"},
+        "visceral_fat_level":       {"type": ["number", "null"], "description": "내장지방 레벨 (없으면 null)"},
+        "basal_metabolic_rate_kcal":{"type": ["number", "null"], "description": "기초대사량 kcal (없으면 null)"},
+        # 부위별 근육 균형 — 고급 기종만
         "segmental_muscle_balance": {
             "type": "object",
+            "description": "부위별 근육량. 측정 안 된 부위는 null",
             "properties": {
-                "left_arm":  {"type": ["number", "null"], "description": "왼팔 근육량 (단위: kg)"},
-                "right_arm": {"type": ["number", "null"], "description": "오른팔 근육량 (단위: kg)"},
-                "trunk":     {"type": ["number", "null"], "description": "몸통 근육량 (단위: kg)"},
-                "left_leg":  {"type": ["number", "null"], "description": "왼다리 근육량 (단위: kg)"},
-                "right_leg": {"type": ["number", "null"], "description": "오른다리 근육량 (단위: kg)"},
+                "left_arm":  {"type": ["number", "null"]},
+                "right_arm": {"type": ["number", "null"]},
+                "trunk":     {"type": ["number", "null"]},
+                "left_leg":  {"type": ["number", "null"]},
+                "right_leg": {"type": ["number", "null"]},
             },
         },
-    },
-}
-
-_FITNESS_ITEM_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "score":       {"type": ["number", "null"], "description": "점수"},
-        "grade":       {"type": ["string", "null"], "description": "등급"},
-        "measurement": {"type": ["string", "null"], "description": "측정값 (단위 포함)"},
-    },
-}
-
-_FITNESS_ASSESSMENT_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "cardiovascular_endurance": _FITNESS_ITEM_SCHEMA,
-        "muscular_strength":        _FITNESS_ITEM_SCHEMA,
-        "muscular_endurance":       _FITNESS_ITEM_SCHEMA,
-        "flexibility":              _FITNESS_ITEM_SCHEMA,
-        "agility":                  _FITNESS_ITEM_SCHEMA,
-        "power":                    _FITNESS_ITEM_SCHEMA,
-        "balance":                  _FITNESS_ITEM_SCHEMA,
-        "overall_fitness_level":    {"type": ["string", "null"], "description": "종합 체력 등급"},
     },
 }
 
@@ -133,42 +89,7 @@ _EXTRACT_SCHEMAS: dict[str, dict] = {
     "inbody": {
         "type": "object",
         "properties": {
-            "user_profile":    _USER_PROFILE_SCHEMA,
             "body_composition": _BODY_COMPOSITION_SCHEMA,
-        },
-        "required": [],
-    },
-    "national_fitness_100": {
-        "type": "object",
-        "properties": {
-            "user_profile":      _USER_PROFILE_SCHEMA,
-            "fitness_assessment": _FITNESS_ASSESSMENT_SCHEMA,
-        },
-        "required": [],
-    },
-    "rehabilitation_guide": {
-        "type": "object",
-        "properties": {
-            "user_profile":      _USER_PROFILE_SCHEMA,
-            "medical_assessment": _MEDICAL_SCHEMA,
-        },
-        "required": [],
-    },
-    "health_checkup": {
-        "type": "object",
-        "properties": {
-            "user_profile":      _USER_PROFILE_SCHEMA,
-            "medical_assessment": _MEDICAL_SCHEMA,
-        },
-        "required": [],
-    },
-    "other": {
-        "type": "object",
-        "properties": {
-            "user_profile":      _USER_PROFILE_SCHEMA,
-            "medical_assessment": _MEDICAL_SCHEMA,
-            "body_composition":  _BODY_COMPOSITION_SCHEMA,
-            "fitness_assessment": _FITNESS_ASSESSMENT_SCHEMA,
         },
         "required": [],
     },
@@ -193,7 +114,12 @@ async def analyze_posture_with_llm(
 ) -> dict:
     system_prompt = """당신은 전문 물리치료사이자 개인 트레이너입니다.
 사용자의 운동 자세를 분석하고 한국어로 구체적이고 친절한 피드백을 제공하세요.
-피드백은 실시간으로 제공되므로 간결하고 명확하게 작성하세요."""
+피드백은 간결하고 명확하게 작성하세요.
+
+[필수 준수 사항]
+1. 교정 피드백은 '~해보세요', '~을 권장합니다' 등 권장형으로만 작성하세요.
+2. 통증이 언급된 경우 즉시 중단을 권고하세요.
+3. 의학적 진단이나 처방처럼 들리는 표현은 사용하지 마세요."""
 
     symptoms_context = f"\n\n사용자 증상/불편사항: {symptoms}" if symptoms else ""
 
@@ -313,49 +239,24 @@ async def generate_workout_routine(
 def _format_health_info_for_llm(health_info: dict) -> str:
     lines: list[str] = []
 
-    profile = health_info.get("user_profile") or {}
-    profile_vals = {k: v for k, v in profile.items() if v is not None}
-    if profile_vals:
-        lines.append("[사용자 프로필]")
-        if profile_vals.get("age"):       lines.append(f"- 나이: {profile_vals['age']}세")
-        if profile_vals.get("gender"):    lines.append(f"- 성별: {profile_vals['gender']}")
-        if profile_vals.get("height_cm"): lines.append(f"- 키: {profile_vals['height_cm']}cm")
-        if profile_vals.get("weight_kg"): lines.append(f"- 체중: {profile_vals['weight_kg']}kg")
-
-    medical = health_info.get("medical_assessment") or {}
-    if any(v for v in medical.values() if v):
-        lines.append("\n[의료 평가]")
-        if medical.get("diagnosis"):            lines.append(f"- 진단: {', '.join(medical['diagnosis'])}")
-        if medical.get("symptoms"):             lines.append(f"- 증상: {', '.join(medical['symptoms'])}")
-        if medical.get("exercise_restrictions"):lines.append(f"- 운동 제한: {', '.join(medical['exercise_restrictions'])}")
-        if medical.get("rehabilitation_stage"): lines.append(f"- 재활 단계: {medical['rehabilitation_stage']}")
-        if medical.get("treatment_period"):     lines.append(f"- 치료 기간: {medical['treatment_period']}")
-
     body = health_info.get("body_composition") or {}
     if any(v for v in body.values() if v is not None):
-        lines.append("\n[체성분 (인바디)]")
-        if body.get("inbody_score") is not None:          lines.append(f"- 인바디 점수: {body['inbody_score']}")
-        if body.get("body_fat_percentage") is not None:   lines.append(f"- 체지방률: {body['body_fat_percentage']}%")
+        lines.append("[체성분 (인바디)]")
+        if body.get("weight_kg") is not None:               lines.append(f"- 체중: {body['weight_kg']}kg")
         if body.get("skeletal_muscle_mass_kg") is not None: lines.append(f"- 골격근량: {body['skeletal_muscle_mass_kg']}kg")
-        if body.get("bmi") is not None:                   lines.append(f"- BMI: {body['bmi']}")
-        if body.get("visceral_fat_level") is not None:    lines.append(f"- 내장지방 레벨: {body['visceral_fat_level']}")
-
-    fitness = health_info.get("fitness_assessment") or {}
-    if any(v for v in fitness.values() if v is not None):
-        lines.append("\n[체력 평가 (국민체력100)]")
-        if fitness.get("overall_fitness_level"): lines.append(f"- 종합 등급: {fitness['overall_fitness_level']}")
-        for key, label in [
-            ("cardiovascular_endurance", "심폐지구력"),
-            ("muscular_strength", "근력"),
-            ("muscular_endurance", "근지구력"),
-            ("flexibility", "유연성"),
-            ("agility", "민첩성"),
-            ("power", "순발력"),
-            ("balance", "평형성"),
-        ]:
-            item = (fitness.get(key) or {})
-            if item.get("grade"):
-                lines.append(f"- {label}: {item['grade']} ({item.get('measurement', '')})")
+        if body.get("body_fat_mass_kg") is not None:        lines.append(f"- 체지방량: {body['body_fat_mass_kg']}kg")
+        if body.get("body_fat_percentage") is not None:     lines.append(f"- 체지방률: {body['body_fat_percentage']}%")
+        if body.get("bmi") is not None:                     lines.append(f"- BMI: {body['bmi']}")
+        if body.get("inbody_score") is not None:            lines.append(f"- 인바디 점수: {body['inbody_score']}")
+        if body.get("visceral_fat_level") is not None:      lines.append(f"- 내장지방 레벨: {body['visceral_fat_level']}")
+        if body.get("basal_metabolic_rate_kcal") is not None: lines.append(f"- 기초대사량: {body['basal_metabolic_rate_kcal']}kcal")
+        seg = body.get("segmental_muscle_balance") or {}
+        seg_vals = {k: v for k, v in seg.items() if v is not None}
+        if seg_vals:
+            lines.append("- 부위별 근육량:")
+            label_map = {"left_arm": "왼팔", "right_arm": "오른팔", "trunk": "몸통", "left_leg": "왼다리", "right_leg": "오른다리"}
+            for key, val in seg_vals.items():
+                lines.append(f"  · {label_map.get(key, key)}: {val}kg")
 
     return "\n".join(lines)
 
@@ -369,16 +270,30 @@ async def analyze_current_state(
     rag_exercises: list[dict],
     health_info: dict = {},
     risk_tags: list[str] = [],
+    analysis_mode: str = "full",
 ) -> dict:
-    system_prompt = """당신은 전문 물리치료사이자 개인 트레이너입니다.
-사용자의 자세 분석 결과, 증상, 임상 자료를 종합하여 현재 신체 상태를 평가하고 적합한 운동을 추천합니다.
+    mode_instruction = {
+        "full":      "자세 분석 데이터와 건강 문서를 모두 활용하여 종합적으로 분석하세요.",
+        "doc_only":  "건강 문서 데이터만 있습니다. 자세 분석 없이 문서 기반으로만 추천하세요.",
+        "pose_only": "자세 분석 데이터만 있습니다. 문서 없이 자세 기반으로만 추천하세요.",
+        "general":   "구체적인 데이터가 없습니다. 일반적인 자세 교정 운동을 추천하세요.",
+    }.get(analysis_mode, "자세 분석 데이터와 건강 문서를 모두 활용하여 종합적으로 분석하세요.")
+
+    system_prompt = f"""당신은 전문 물리치료사이자 개인 트레이너입니다.
+{mode_instruction}
 
 운동 추천 이유를 설명할 때는 반드시 다음 흐름으로 충분히 자세하게 서술하세요:
 1) 현재 어떤 자세·신체 문제가 있고 그것이 왜(어떤 원인으로) 발생했는지
 2) 그래서 어느 근육/부위를 강화하거나 이완·교정해야 하는지
 3) 따라서 어떤 유형의 운동을 왜 추천하는지
 사용자가 이해하기 쉽도록 부위 이름과 근육을 구체적으로 언급하고, 동기부여가 되는 어조로 작성하세요.
-반드시 한국어로 답변하세요."""
+반드시 한국어로 답변하세요.
+
+[필수 준수 사항]
+1. 모든 운동 추천은 반드시 '권장합니다', '도움이 될 수 있습니다', '고려해보세요' 등 권장형 표현만 사용하세요.
+2. '해야 합니다', '금지입니다', '반드시' 등 단정적 표현은 절대 사용하지 마세요.
+3. 질병, 통증, 재활 정보가 포함된 경우 반드시 의료 전문가 상담을 권장하는 문구를 포함하세요.
+4. 운동 처방이 아닌 참고 정보임을 명시하세요."""
 
     issues_text = "\n".join([f"- {i}" for i in posture_issues]) if posture_issues else "- 없음"
 
@@ -579,11 +494,8 @@ async def classify_document(content: bytes, content_type: str) -> str:
                 "schema": {
                     "type": "string",
                     "oneOf": [
-                        {"const": "inbody",              "description": "인바디 체성분 분석 결과지"},
-                        {"const": "national_fitness_100","description": "국민체력100 체력 측정 결과지"},
-                        {"const": "rehabilitation_guide","description": "재활 안내문 또는 물리치료 처방전"},
-                        {"const": "health_checkup",      "description": "건강검진표 또는 건강검진 결과지"},
-                        {"const": "other",               "description": "위 유형에 해당하지 않는 기타 문서"},
+                        {"const": "inbody", "description": "인바디 체성분 분석 결과지"},
+                        {"const": "other",  "description": "인바디 결과지가 아닌 기타 문서"},
                     ],
                 },
             },
@@ -607,7 +519,7 @@ async def extract_health_info(content: bytes, content_type: str, category: str) 
     key = _upstage_key("extract")
     if not key:
         return {}
-    schema = _EXTRACT_SCHEMAS.get(category, _EXTRACT_SCHEMAS["other"])
+    schema = _EXTRACT_SCHEMAS.get(category, _EXTRACT_SCHEMAS["inbody"])
     data_url = f"data:application/octet-stream;base64,{base64.b64encode(content).decode()}"
     body = {
         "model": "information-extract",
