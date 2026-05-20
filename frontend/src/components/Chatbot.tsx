@@ -82,6 +82,11 @@ export default function Chatbot({ userId, poseContext, onSymptomsUpdate }: Props
         </div>
       </div>
 
+      {/* 면책 고지 */}
+      <div className="px-4 py-2 bg-yellow-500/10 border-b border-yellow-500/10 text-xs text-yellow-300/60">
+        ⚠️ AI 코치는 참고용입니다. 통증이 있다면 의료 전문가와 상담하세요.
+      </div>
+
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {messages.map((msg, i) => (

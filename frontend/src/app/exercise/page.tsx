@@ -4,11 +4,17 @@ import { api, ProcessDocumentResult, NFAVideo } from "@/lib/api";
 import { USER_ID } from "@/lib/utils";
 
 const CATEGORY_LABELS: Record<string, string> = {
-  inbody:               "인바디 결과지",
-  national_fitness_100: "국민체력100 결과지",
-  rehabilitation_guide: "재활 안내문",
-  health_checkup:       "건강검진표",
-  other:                "기타 문서",
+  inbody: "인바디 결과지",
+  other:  "기타 문서",
+};
+
+type AnalysisMode = "full" | "doc_only" | "pose_only" | "general";
+
+const MODE_LABEL: Record<AnalysisMode, { text: string; color: string }> = {
+  full:      { text: "📊 종합 분석 기반 추천",   color: "bg-[#c3c0ff]/20 text-[#c3c0ff]" },
+  doc_only:  { text: "📄 건강 문서 기반 추천",   color: "bg-blue-500/20 text-blue-300" },
+  pose_only: { text: "🧍 자세 분석 기반 추천",   color: "bg-green-500/20 text-green-300" },
+  general:   { text: "💡 일반 추천",             color: "bg-white/10 text-[#c7c4da]" },
 };
 
 const RISK_TAG_LABELS: Record<string, string> = {
@@ -45,6 +51,7 @@ function ExercisePageInner() {
   const [storedDocResults, setStoredDocResults] = useState<ProcessDocumentResult[]>([]);
   const [docResults, setDocResults] = useState<ProcessDocumentResult[]>([]);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
+  const [analysisMode, setAnalysisMode] = useState<AnalysisMode | null>(null);
   const [nfaVideos, setNfaVideos] = useState<NFAVideo[]>([]);
 
   useEffect(() => {
@@ -81,6 +88,7 @@ function ExercisePageInner() {
   const handleAnalyze = async () => {
     setLoading(true);
     setAnalysis(null);
+    setAnalysisMode(null);
     setNfaVideos([]);
     setDocResults([]);
 
@@ -129,7 +137,7 @@ function ExercisePageInner() {
     const age = mergedHealthInfo.user_profile?.age ?? 30;
 
     setLoadingStep("AI 상태 분석 중...");
-    let result: { analysis: Analysis; exercises: unknown[] };
+    let result: { analysis: Analysis; analysis_mode: AnalysisMode; exercises: unknown[] };
     try {
       result = await api.recommendExercises({
         user_id: USER_ID,
@@ -140,7 +148,7 @@ function ExercisePageInner() {
         doc_text: docText,
         health_info: mergedHealthInfo,
         risk_tags: allRiskTags,
-      }) as { analysis: Analysis; exercises: unknown[] };
+      }) as { analysis: Analysis; analysis_mode: AnalysisMode; exercises: unknown[] };
     } catch (e) {
       console.error("[exercise] analyze error:", e);
       setLoadingStep("분석 중 오류가 발생했습니다.");
@@ -148,6 +156,7 @@ function ExercisePageInner() {
       return;
     }
     setAnalysis(result.analysis);
+    setAnalysisMode(result.analysis_mode ?? null);
 
     setLoadingStep("분석 결과 기반 운동 영상 불러오는 중...");
     const analysisGoal = [
@@ -173,6 +182,8 @@ function ExercisePageInner() {
   };
 
   const hasPosture = !!posture?.front || !!posture?.side;
+  const hasDoc = storedDocResults.length > 0 || uploadedFiles.length > 0;
+  const canAnalyze = hasPosture || hasDoc;
 
   return (
     <div className="min-h-screen bg-[#050505] px-5 pb-16">
@@ -454,11 +465,18 @@ function ExercisePageInner() {
           </div>
         </div>
 
+        {/* 최소 입력 없을 때 안내 */}
+        {!canAnalyze && (
+          <p className="text-xs text-[#c7c4da]/40 text-center -mt-1">
+            자세 분석 결과 또는 인바디 문서 중 최소 하나를 입력해야 분석할 수 있습니다.
+          </p>
+        )}
+
         {/* Analyze button */}
         <button
           onClick={handleAnalyze}
-          disabled={loading}
-          className="w-full py-4 rounded-xl text-sm font-bold text-white disabled:opacity-50 flex items-center justify-center gap-2 transition-opacity hover:opacity-90"
+          disabled={loading || !canAnalyze}
+          className="w-full py-4 rounded-xl text-sm font-bold text-white disabled:opacity-40 flex items-center justify-center gap-2 transition-opacity hover:opacity-90"
           style={{ background: "linear-gradient(135deg, #1d00a5, #4a3aff 60%, #552ba0)" }}
         >
           {loading ? (
@@ -492,6 +510,11 @@ function ExercisePageInner() {
               <h2 className="text-sm font-bold text-[#c3c0ff] uppercase tracking-wider">
                 AI 현재 상태 분석
               </h2>
+              {analysisMode && (
+                <span className={`ml-auto px-2.5 py-1 rounded-lg text-xs font-medium ${MODE_LABEL[analysisMode].color}`}>
+                  {MODE_LABEL[analysisMode].text}
+                </span>
+              )}
             </div>
             <p className="text-sm text-[#e5e2e1] leading-relaxed">{analysis.state_summary}</p>
 

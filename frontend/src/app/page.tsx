@@ -43,6 +43,7 @@ export default function Home() {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [docResults, setDocResults] = useState<ProcessDocumentResult[]>([]);
+  const [lastDocData, setLastDocData] = useState<ProcessDocumentResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const CATEGORY_LABELS: Record<string, string> = {
@@ -112,10 +113,26 @@ export default function Home() {
       if (raw) setPostureAnalysis(JSON.parse(raw));
     } catch {}
 
+    try {
+      const lastDocRaw = localStorage.getItem("fitai_last_document");
+      if (lastDocRaw) setLastDocData(JSON.parse(lastDocRaw));
+    } catch {}
+
     if (typeof Notification !== "undefined" && Notification.permission === "default") {
       Notification.requestPermission();
     }
   }, []);
+
+  const clearSymptoms = () => {
+    localStorage.removeItem("fitai_symptoms");
+    setSymptoms("");
+    setSymptomsInput("");
+  };
+
+  const clearLastDoc = () => {
+    localStorage.removeItem("fitai_last_document");
+    setLastDocData(null);
+  };
 
   const saveSymptoms = async () => {
     setSavingSymptoms(true);
@@ -245,7 +262,7 @@ export default function Home() {
         </div>
 
         {/* Symptom / Document Card */}
-        <div className="md:col-span-6 glass-card rounded-xl p-6 flex flex-col gap-5">
+        <div className="md:col-span-6 glass-card rounded-xl p-6 flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <h4 className="text-[#e5e2e1] text-xs font-bold uppercase tracking-widest">나의 증상/불편사항</h4>
             <span className="material-symbols-outlined text-[#c7c4da]" style={{ fontSize: "20px" }}>edit_note</span>
@@ -253,21 +270,31 @@ export default function Home() {
           <textarea
             value={symptomsInput}
             onChange={(e) => setSymptomsInput(e.target.value)}
-            className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-sm text-[#e5e2e1] focus:outline-none focus:border-[#c3c0ff]/50 min-h-[90px] resize-none placeholder:text-[#c7c4da]/30"
+            className={`w-full bg-white/5 border border-white/10 rounded-lg p-3 text-sm text-[#e5e2e1] focus:outline-none focus:border-[#c3c0ff]/50 resize-none placeholder:text-[#c7c4da]/30 transition-all duration-300 ${docResults.length === 0 && lastDocData ? "min-h-[100px]" : "min-h-[140px]"}`}
             placeholder="현재 느껴지는 신체적 불편함이나 통증 부위를 기록해주세요..."
-            rows={3}
+            rows={docResults.length === 0 && lastDocData ? 4 : 5}
           />
           {symptoms && (
-            <div className="flex flex-wrap gap-1.5">
-              {symptoms.split(",").map((s) => s.trim()).filter(Boolean).map((s) => (
-                <span key={s} className="px-2.5 py-1 bg-[#4a3aff]/20 text-[#c3c0ff] border border-[#c3c0ff]/20 rounded-full text-xs">{s}</span>
-              ))}
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex flex-wrap gap-1.5 flex-1">
+                {symptoms.split(",").map((s) => s.trim()).filter(Boolean).map((s) => (
+                  <span key={s} className="px-2.5 py-1 bg-[#4a3aff]/20 text-[#c3c0ff] border border-[#c3c0ff]/20 rounded-full text-xs">{s}</span>
+                ))}
+              </div>
+              <button
+                onClick={clearSymptoms}
+                className="shrink-0 text-[10px] text-[#c7c4da]/40 hover:text-[#ffb4ab] transition-colors flex items-center gap-0.5 mt-0.5"
+                title="저장된 증상 삭제"
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: "12px" }}>delete</span>
+                삭제
+              </button>
             </div>
           )}
 
           {/* File upload */}
           <div
-            className={`flex items-center gap-3 p-3 border border-dashed rounded-lg cursor-pointer transition-colors ${
+            className={`flex items-center gap-3 py-5 px-4 border border-dashed rounded-lg cursor-pointer transition-colors ${
               isDragging ? "border-[#c3c0ff]/60 bg-[#4a3aff]/10" : "border-white/10 bg-white/[0.02] hover:border-[#c3c0ff]/30"
             }`}
             onClick={() => fileInputRef.current?.click()}
@@ -336,17 +363,50 @@ export default function Home() {
               </Link>
             </div>
           )}
+
+          {docResults.length === 0 && lastDocData && (
+            <div className="flex flex-col gap-2">
+              <div className="bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-xs">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="font-semibold text-[#e5e2e1]">{CATEGORY_LABELS[lastDocData.document_category] ?? lastDocData.document_category}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[#c7c4da] text-[10px] uppercase tracking-wider">저장된 문서</span>
+                    <button
+                      onClick={clearLastDoc}
+                      className="text-[10px] text-[#c7c4da]/40 hover:text-[#ffb4ab] transition-colors flex items-center gap-0.5"
+                      title="저장된 문서 삭제"
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: "12px" }}>delete</span>
+                      삭제
+                    </button>
+                  </div>
+                </div>
+                {lastDocData.risk_tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {lastDocData.risk_tags.map((tag) => (
+                      <span key={tag} className="px-1.5 py-0.5 bg-[#93000a]/40 text-[#ffb4ab] border border-[#ffb4ab]/20 rounded-full text-[10px]">
+                        {RISK_TAG_LABELS[tag] ?? tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <Link href="/exercise" className="text-center text-xs text-[#c3c0ff] hover:underline">
+                운동 추천 받으러 가기 →
+              </Link>
+            </div>
+          )}
         </div>
 
         {/* Chart + Schedule */}
         <div className="md:col-span-6 flex flex-col gap-4">
           {/* Bar Chart */}
-          <div className="glass-card rounded-xl p-5">
+          <div className="glass-card rounded-xl p-5 flex-1 flex flex-col">
             <div className="flex items-center justify-between mb-4">
               <h4 className="text-[#e5e2e1] text-xs font-bold uppercase tracking-widest">운동 기록</h4>
               <span className="text-[#c7c4da] text-[10px] uppercase tracking-wider">Weekly Progress</span>
             </div>
-            <div className="flex items-end gap-2 h-40 pb-2 border-b border-l border-white/10">
+            <div className="flex items-end gap-2 flex-1 min-h-[72px] pb-2 border-b border-l border-white/10">
               {chartBars.map((score, i) => (
                 <div key={i} className="flex-1 flex flex-col items-center gap-1.5" style={{ height: "100%", display: "flex", alignItems: "flex-end", flexDirection: "column", justifyContent: "flex-end" }}>
                   <div

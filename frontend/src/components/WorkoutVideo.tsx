@@ -90,6 +90,9 @@ export default function WorkoutVideo({ userId, poseSummary, postureIssues }: Pro
         <div className="bg-primary-500/10 border border-primary-500/20 rounded-xl p-3 text-sm text-primary-400">
           💬 {routine.personalized_note}
         </div>
+        <div className="mt-2 px-3 py-2 bg-yellow-500/10 border border-yellow-500/20 rounded-xl text-xs text-yellow-300/70">
+          ⚠️ 본 추천은 참고용이며 의료적 처방을 대체하지 않습니다. 통증 발생 시 즉시 중단하고 전문가와 상담하세요.
+        </div>
       </div>
 
       {/* Phase Tabs */}

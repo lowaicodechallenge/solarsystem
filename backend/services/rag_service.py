@@ -29,7 +29,17 @@ def get_collection():
 
     try:
         _collection = client.get_collection("exercises", embedding_function=ef)
+        with open(EXERCISES_PATH, "r", encoding="utf-8") as f:
+            expected_count = len(json.load(f))
+        if _collection.count() != expected_count:
+            client.delete_collection("exercises")
+            _collection = client.create_collection("exercises", embedding_function=ef)
+            _seed_exercises(_collection)
     except Exception:
+        try:
+            client.delete_collection("exercises")
+        except Exception:
+            pass
         _collection = client.create_collection("exercises", embedding_function=ef)
         _seed_exercises(_collection)
 

@@ -99,7 +99,7 @@ function WorkoutPageInner() {
             자세 분석
           </h1>
           <p className="text-sm text-[#c7c4da]/50 mt-1">
-            AI 웹캠으로 실시간 자세를 분석하고 교정하세요
+            정면·측면 사진을 업로드해 AI로 자세를 분석하세요
           </p>
         </div>
         <div className="glass-card flex items-center gap-3 px-4 py-3 shrink-0">
@@ -139,7 +139,7 @@ function WorkoutPageInner() {
                 Measure My Posture
               </h2>
               <p className="text-sm text-white/70 max-w-xs">
-                AI 웹캠 자세 분석으로 정확한 자세를 교정하며 홈트를 시작하세요.
+                정면·측면 사진을 업로드하면 AI가 랜드마크를 시각화하고 자세를 분석해 드려요.
               </p>
             </div>
             <Link
