@@ -14,7 +14,6 @@
 | 리포트 메일 발송 | 생성된 주간 리포트를 HTML 이메일로 발송 (SMTP 설정 필요) |
 | RAG 운동 DB | ChromaDB 벡터 DB에서 증상/자세에 맞는 운동 검색 |
 | AI 코치 챗봇 | 증상 입력 → LLM 문맥 파악 → 자세 분석과 통합 처리 |
-| 실시간 대결 | 유사 자세 문제 사용자와 WebSocket 기반 60초 운동 배틀 (WIP — 백엔드·컴포넌트 구현됨) |
 | Google 캘린더 | 프론트 전용 OAuth → When2Meet 그리드로 빈 시간대 탐색 후 운동 블록 등록 |
 | Dashboard | Google Calendar 연동 시 예정/완료 운동 일정 자동 표시 |
 
