@@ -501,12 +501,7 @@ function ExercisePageInner() {
         {analysis && (
           <div className="glass-card p-5 flex flex-col gap-3">
             <div className="flex items-center gap-2 mb-1">
-              <span
-                className="material-symbols-outlined text-[#c3c0ff]"
-                style={{ fontSize: "20px", fontVariationSettings: "'FILL' 1" }}
-              >
-                psychology
-              </span>
+              <img src="/images/solfriend.png" alt="solfriend" className="w-6 h-6 object-contain" />
               <h2 className="text-sm font-bold text-[#c3c0ff] uppercase tracking-wider">
                 AI 현재 상태 분석
               </h2>

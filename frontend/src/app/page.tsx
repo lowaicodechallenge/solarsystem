@@ -182,7 +182,10 @@ export default function Home() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pt-6 mb-6">
         <div>
           <p className="text-[#c3c0ff] text-xs font-semibold uppercase tracking-widest mb-1">Welcome Back</p>
-          <h2 className="font-oswald text-4xl font-bold text-[#e5e2e1]">안녕하세요!</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="font-oswald text-4xl font-bold text-[#e5e2e1]">안녕하세요!</h2>
+            <img src="/images/solfriend.png" alt="solfriend" className="h-14 w-auto object-contain" />
+          </div>
         </div>
         <div className="flex items-center gap-3 bg-[#4a3aff]/20 px-5 py-2.5 rounded-xl border border-[#c3c0ff]/20 glow-primary">
           <span className="text-[#c7c4da] text-xs font-semibold">Average Posture Score</span>
