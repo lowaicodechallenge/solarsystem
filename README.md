@@ -10,7 +10,8 @@
 | 인바디 기반 운동 추천 | 인바디 결과지를 AI가 읽어 체성분 데이터 기반 맞춤 운동 추천 |
 | AI 상태 분석 | 자세 점수·증상·인바디 데이터를 보유 상태에 따라 4가지 모드로 분기해 LLM이 현재 신체 상태 요약 |
 | 국민체력100 영상 추천 | AI 분석 결과 기반으로 교정/재활 필요 부위 영상 자동 선택 (부상 부위 제외) |
-| 주간 리포트 | 운동 기록·자세 점수·증상을 종합한 주간 AI 리포트 생성 |
+| 주간 리포트 | 운동 기록·자세 점수·증상을 종합한 주간 AI 리포트 생성. Google Calendar 연동 시 캘린더 이벤트 수도 합산해 집계 |
+| 리포트 메일 발송 | 생성된 주간 리포트를 HTML 이메일로 발송 (SMTP 설정 필요) |
 | RAG 운동 DB | ChromaDB 벡터 DB에서 증상/자세에 맞는 운동 검색 |
 | AI 코치 챗봇 | 증상 입력 → LLM 문맥 파악 → 자세 분석과 통합 처리 |
 | 실시간 대결 | 유사 자세 문제 사용자와 WebSocket 기반 60초 운동 배틀 (WIP — 백엔드·컴포넌트 구현됨) |
@@ -41,6 +42,12 @@ NFA_API_KEY=your_nfa_api_key_here
 VIDEO_API_KEY=your_youtube_data_api_v3_key
 
 FRONTEND_URL=http://localhost:3000
+
+# 주간 리포트 메일 발송 (선택 — 없으면 메일 발송 기능 비활성화)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your@gmail.com
+SMTP_PASSWORD=your_app_password   # Gmail: 앱 비밀번호 16자리 (2단계 인증 필요)
 ```
 
 `frontend/.env.local` 파일 생성:
@@ -231,6 +238,8 @@ gcal_access_token (localStorage)
 
 Google Calendar 미연동 시 기존 SQLite 기반 데이터로 fallback.
 
+주간 리포트 페이지에서도 동일한 토큰으로 최근 7일(현재 날짜 기준 -6일 00:00 ~ 현재)의 솔메이트 이벤트 수를 조회해 `gcal_session_count`로 백엔드에 전달합니다. 리포트 운동 횟수 집계는 SQLite 세션 수 + GCal 이벤트 수의 합산값입니다.
+
 ## API 엔드포인트
 
 ### 문서 처리
@@ -257,7 +266,8 @@ Google Calendar 미연동 시 기존 SQLite 기반 데이터로 fallback.
 ### 리포트
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
-| POST | `/api/report/weekly` | 주간 운동 기록·자세 점수·증상 종합 리포트 생성 |
+| POST | `/api/report/weekly` | 주간 운동 기록·자세 점수·증상 종합 리포트 생성 (`gcal_session_count` 포함 시 GCal 이벤트 수 합산) |
+| POST | `/api/report/send-email` | 생성된 리포트를 HTML 이메일로 발송 |
 
 ### 기타
 | 메서드 | 경로 | 설명 |

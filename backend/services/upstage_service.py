@@ -402,10 +402,12 @@ async def generate_weekly_report(
         if risk_tags else ""
     )
 
+    total_count = stats.get("session_count", 0) + stats.get("gcal_session_count", 0)
+
     user_message = f"""다음은 사용자의 최근 {stats.get('period_days', 7)}일간 데이터입니다.
 
 ## 운동 기록
-- 총 운동 횟수: {stats.get('session_count', 0)}회
+- 총 운동 횟수: {total_count}회
 - 평균 자세 점수: {stats.get('avg_score', 0):.0f}/100
 - 점수 추세: {stats.get('score_trend', '데이터 부족')}
 - 최고/최저 점수: {stats.get('best_score', 0):.0f} / {stats.get('worst_score', 0):.0f}

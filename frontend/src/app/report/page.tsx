@@ -8,6 +8,9 @@ export default function ReportPage() {
   const [data, setData] = useState<WeeklyReportResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [emailInput, setEmailInput] = useState("");
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [emailStatus, setEmailStatus] = useState<"idle" | "sent" | "error">("idle");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -16,6 +19,7 @@ export default function ReportPage() {
     let symptoms = "";
     let riskTags: string[] = [];
     let postureScores: { front?: number; side?: number } = {};
+    let gcalSessionCount = 0;
     try {
       symptoms = localStorage.getItem("fitai_symptoms") ?? "";
       const docsRaw = localStorage.getItem("fitai_health_documents");
@@ -31,6 +35,22 @@ export default function ReportPage() {
           side: p.side?.score ? Math.round(p.side.score) : undefined,
         };
       }
+      const gcalToken = localStorage.getItem("gcal_access_token");
+      if (gcalToken) {
+        const timeMin = new Date();
+        timeMin.setDate(timeMin.getDate() - 6);
+        timeMin.setHours(0, 0, 0, 0);
+        const r = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(timeMin.toISOString())}&timeMax=${encodeURIComponent(new Date().toISOString())}&singleEvents=true&maxResults=100&q=${encodeURIComponent("솔메이트")}`,
+          { headers: { Authorization: `Bearer ${gcalToken}` } }
+        );
+        if (r.ok) {
+          const data = await r.json();
+          gcalSessionCount = (data.items ?? []).length;
+        } else if (r.status === 401) {
+          localStorage.removeItem("gcal_access_token");
+        }
+      }
     } catch {}
 
     try {
@@ -40,6 +60,7 @@ export default function ReportPage() {
         symptoms,
         risk_tags: riskTags,
         posture_scores: postureScores,
+        gcal_session_count: gcalSessionCount,
       });
       setData(res);
     } catch {
@@ -117,7 +138,7 @@ export default function ReportPage() {
           {/* Stat tiles */}
           <div className="md:col-span-3 glass-card rounded-xl p-5 flex flex-col items-center justify-center text-center">
             <p className="text-[#c7c4da] text-[10px] uppercase tracking-widest mb-2 font-semibold">운동 횟수</p>
-            <p className="font-oswald text-5xl font-bold text-[#e5e2e1]">{stats.session_count}</p>
+            <p className="font-oswald text-5xl font-bold text-[#e5e2e1]">{stats.session_count + (stats.gcal_session_count ?? 0)}</p>
             <p className="text-[#c7c4da] text-[10px] mt-1">최근 {stats.period_days}일</p>
           </div>
           <div className="md:col-span-3 glass-card rounded-xl p-5 flex flex-col items-center justify-center text-center">
@@ -220,6 +241,54 @@ export default function ReportPage() {
                 </li>
               ))}
             </ul>
+          </div>
+
+          <div className="md:col-span-12 glass-card rounded-xl p-5">
+            <h4 className="text-[#e5e2e1] text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2">
+              <span className="material-symbols-outlined text-[#c3c0ff]" style={{ fontSize: "18px" }}>mail</span>
+              리포트 메일로 받기
+            </h4>
+            <div className="flex gap-2">
+              <input
+                type="email"
+                value={emailInput}
+                onChange={(e) => { setEmailInput(e.target.value); setEmailStatus("idle"); }}
+                placeholder="이메일 주소 입력"
+                className="flex-1 bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-[#e5e2e1] placeholder:text-[#c7c4da]/30 focus:outline-none focus:border-[#c3c0ff]/50"
+              />
+              <button
+                disabled={sendingEmail || !emailInput}
+                onClick={async () => {
+                  if (!data) return;
+                  setSendingEmail(true);
+                  setEmailStatus("idle");
+                  try {
+                    await api.sendReportEmail({
+                      email: emailInput,
+                      stats: data.stats,
+                      report: data.report,
+                      generated_at: data.generated_at,
+                    });
+                    setEmailStatus("sent");
+                  } catch {
+                    setEmailStatus("error");
+                  }
+                  setSendingEmail(false);
+                }}
+                className="inline-flex items-center gap-2 bg-[#4a3aff] hover:bg-[#5c4dff] disabled:opacity-40 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition-colors whitespace-nowrap"
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: "16px" }}>
+                  {sendingEmail ? "hourglass_top" : "send"}
+                </span>
+                {sendingEmail ? "발송 중..." : "보내기"}
+              </button>
+            </div>
+            {emailStatus === "sent" && (
+              <p className="mt-2 text-xs text-[#00e293]">✓ 메일이 발송되었습니다.</p>
+            )}
+            {emailStatus === "error" && (
+              <p className="mt-2 text-xs text-[#ffb4ab]">발송에 실패했습니다. 백엔드 SMTP 설정을 확인해주세요.</p>
+            )}
           </div>
 
           <div className="md:col-span-12 flex items-center justify-between pt-1">

@@ -226,12 +226,25 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  sendReportEmail: (data: {
+    email: string;
+    stats: WeeklyReportResult["stats"];
+    report: WeeklyReportResult["report"];
+    generated_at: string;
+  }) =>
+    fetchJson<{ status: string }>("/api/report/send-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }),
+
   getWeeklyReport: (data: {
     user_id: string;
     period_days?: number;
     symptoms?: string;
     risk_tags?: string[];
     posture_scores?: { front?: number; side?: number };
+    gcal_session_count?: number;
   }) =>
     fetchJson<WeeklyReportResult>("/api/report/weekly", {
       method: "POST",
@@ -244,6 +257,7 @@ export type WeeklyReportResult = {
   stats: {
     period_days: number;
     session_count: number;
+    gcal_session_count: number;
     avg_score: number;
     best_score: number;
     worst_score: number;
