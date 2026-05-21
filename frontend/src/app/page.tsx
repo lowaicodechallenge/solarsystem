@@ -162,12 +162,8 @@ export default function Home() {
 
   const lastSession = history[0];
   const avgScore = history.length > 0 ? history.reduce((a, b) => a + b.avg_score, 0) / history.length : 0;
-  const chartBars = history.length > 0
-    ? history.slice(0, 6).reverse().map((s) => s.avg_score)
-    : [65, 80, 40, 90, 55, 70];
-  const chartLabels = history.length > 0
-    ? history.slice(0, 6).reverse().map((s) => format(new Date(s.created_at), "M/d"))
-    : ["1회", "2회", "3회", "4회", "5회", "최근"];
+  const chartBars = history.slice(0, 6).reverse().map((s) => s.avg_score);
+  const chartLabels = history.slice(0, 6).reverse().map((s) => format(new Date(s.created_at), "M/d"));
 
   const scores = postureAnalysis
     ? [postureAnalysis.front?.score, postureAnalysis.side?.score].filter((s): s is number => s !== undefined)
@@ -403,28 +399,38 @@ export default function Home() {
           {/* Bar Chart */}
           <div className="glass-card rounded-xl p-5 flex-1 flex flex-col">
             <div className="flex items-center justify-between mb-4">
-              <h4 className="text-[#e5e2e1] text-xs font-bold uppercase tracking-widest">운동 기록</h4>
+              <h4 className="text-[#e5e2e1] text-xs font-bold uppercase tracking-widest">자세 기록</h4>
               <span className="text-[#c7c4da] text-[10px] uppercase tracking-wider">Weekly Progress</span>
             </div>
-            <div className="flex items-end gap-2 flex-1 min-h-[72px] pb-2 border-b border-l border-white/10">
-              {chartBars.map((score, i) => (
-                <div key={i} className="flex-1 flex flex-col items-center gap-1.5" style={{ height: "100%", display: "flex", alignItems: "flex-end", flexDirection: "column", justifyContent: "flex-end" }}>
-                  <div
-                    className="w-full rounded-t-lg transition-all duration-300 relative group"
-                    style={{ height: `${Math.max(score, 5)}%`, backgroundColor: i === chartBars.length - 1 ? "#c3c0ff" : "rgba(195,192,255,0.25)" }}
-                  >
-                    <span className="absolute -top-5 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 text-[10px] text-[#c3c0ff] font-bold whitespace-nowrap transition-opacity">
-                      {score.toFixed(0)}
-                    </span>
-                  </div>
+            {history.length > 0 ? (
+              <>
+                <div className="flex items-end gap-2 flex-1 min-h-[72px] pb-2 border-b border-l border-white/10">
+                  {chartBars.map((score, i) => (
+                    <div key={i} className="flex-1 flex flex-col items-center gap-1.5" style={{ height: "100%", display: "flex", alignItems: "flex-end", flexDirection: "column", justifyContent: "flex-end" }}>
+                      <div
+                        className="w-full rounded-t-lg transition-all duration-300 relative group"
+                        style={{ height: `${Math.max(score, 5)}%`, backgroundColor: i === chartBars.length - 1 ? "#c3c0ff" : "rgba(195,192,255,0.25)" }}
+                      >
+                        <span className="absolute -top-5 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 text-[10px] text-[#c3c0ff] font-bold whitespace-nowrap transition-opacity">
+                          {score.toFixed(0)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            <div className="flex justify-between mt-2">
-              {chartLabels.map((l, i) => (
-                <span key={i} className="text-[10px] text-[#c7c4da] flex-1 text-center">{l}</span>
-              ))}
-            </div>
+                <div className="flex justify-between mt-2">
+                  {chartLabels.map((l, i) => (
+                    <span key={i} className="text-[10px] text-[#c7c4da] flex-1 text-center">{l}</span>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center py-4">
+                <span className="material-symbols-outlined text-white/20" style={{ fontSize: "36px" }}>accessibility_new</span>
+                <p className="text-[#c7c4da] text-xs">자세를 측정해보세요</p>
+                <Link href="/scanpose" className="text-[#c3c0ff] text-[10px] hover:underline">스캔 시작하기</Link>
+              </div>
+            )}
           </div>
 
           {/* Schedule */}
@@ -552,10 +558,16 @@ export default function Home() {
           )}
 
           <div className="mt-4 pt-3 border-t border-white/5 text-center">
-            <span className="text-xs text-[#c7c4da]">
-              총 <span className="font-bold text-[#e5e2e1]">{gcalConnected ? gcalTotalCount : history.length}</span>회 운동 완료
-              {gcalConnected && gcalTotalCount === 100 && "+"}
-            </span>
+            {gcalConnected ? (
+              <span className="text-xs text-[#c7c4da]">
+                총 <span className="font-bold text-[#e5e2e1]">{gcalTotalCount}</span>회 운동 완료
+                {gcalTotalCount === 100 && "+"}
+              </span>
+            ) : (
+              <Link href="/calendar" className="text-xs text-[#c7c4da] hover:text-[#c3c0ff] transition-colors">
+                캘린더를 연동하고 운동 기록을 확인하세요 →
+              </Link>
+            )}
           </div>
         </div>
       </div>
