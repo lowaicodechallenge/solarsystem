@@ -144,7 +144,7 @@ export default function Home() {
       const results: ProcessDocumentResult[] = [];
       for (const file of uploadedFiles) {
         try {
-          const result = await api.processDocument(file);
+          const result = await api.processDocument(file, { user_id: USER_ID, symptoms: symptomsInput });
           results.push(result);
           localStorage.setItem("fitai_last_document", JSON.stringify(result));
         } catch {}

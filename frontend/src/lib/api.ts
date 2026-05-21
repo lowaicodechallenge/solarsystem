@@ -1,4 +1,5 @@
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const N8N_WEBHOOK_URL = process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL ?? "";
 
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, init);
@@ -200,10 +201,18 @@ export const api = {
     return res.json();
   },
 
-  processDocument: async (file: File): Promise<ProcessDocumentResult> => {
+  processDocument: async (
+    file: File,
+    opts?: { user_id?: string; symptoms?: string; google_token?: string; scheduled_time?: string }
+  ): Promise<ProcessDocumentResult> => {
     const form = new FormData();
     form.append("file", file);
-    const res = await fetch(`${BASE_URL}/api/workout/process-document`, { method: "POST", body: form });
+    if (opts?.user_id) form.append("user_id", opts.user_id);
+    if (opts?.symptoms) form.append("symptoms", opts.symptoms);
+    if (opts?.google_token) form.append("google_token", opts.google_token);
+    if (opts?.scheduled_time) form.append("scheduled_time", opts.scheduled_time);
+    const url = N8N_WEBHOOK_URL || `${BASE_URL}/api/workout/process-document`;
+    const res = await fetch(url, { method: "POST", body: form });
     if (!res.ok) throw new Error(`Document processing failed: ${res.status}`);
     return res.json();
   },
