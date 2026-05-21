@@ -1,0 +1,231 @@
+{
+  "name": "My workflow 2",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "solmate/document-upload",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "d4147c72-90e8-430c-af1c-96ad5a89bf68",
+      "name": "Webhook",
+      "webhookId": "81bfac2e-9c1d-4e66-80ad-01287cd90924"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8000/api/workout/process-document",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "file"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        208,
+        0
+      ],
+      "id": "43c40779-201e-4691-808b-cd89115739eb",
+      "name": "process-document"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"document_category\": \"{{ $('process-document').item.json.document_category }}\",\n  \"parsed_text\": \"{{ $('process-document').item.json.parsed_text }}\",\n  \"page_count\": \"{{ $('process-document').item.json.page_count }}\",\n  \"health_info\": {{ JSON.stringify($('process-document').item.json.health_info) }},\n  \"risk_tags\": {{ JSON.stringify($('process-document').item.json.risk_tags) }}\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        416,
+        0
+      ],
+      "id": "3fc7c87d-03f6-44f2-8b17-67bc2f941aaa",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8000/api/workout/recommend",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"user_id\": \"{{ $('Webhook').item.json.body.user_id }}\",\n  \"posture_issues\": [],\n  \"front_score\": 0,\n  \"side_score\": 0,\n  \"symptoms\": \"{{ $('Webhook').item.json.body.symptoms }}\",\n  \"doc_text\": \"{{ $('process-document').item.json.parsed_text }}\",\n  \"health_info\": {{ JSON.stringify($('process-document').item.json.health_info) }},\n  \"risk_tags\": {{ JSON.stringify($('process-document').item.json.risk_tags) }}\n}\n\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        624,
+        0
+      ],
+      "id": "8059dc53-9365-4967-aacc-24268aedc2b9",
+      "name": "recommend"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8000/api/workout/nfa-videos",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"age\": 30,\n  \"goal\": \"{{ $('recommend').item.json.analysis.main_concerns.join(' ') }} {{ $('recommend').item.json.analysis.risk_areas.join(' ') }}\",\n  \"pain_area\": {{ JSON.stringify($('recommend').item.json.analysis.main_concerns) }},\n  \"place\": \"home\",\n  \"level\": \"beginner\",\n  \"available_time_min\": 15,\n  \"health_info\": {{ JSON.stringify($('process-document').item.json.health_info) }},\n  \"risk_tags\": {{ JSON.stringify($('process-document').item.json.risk_tags) }},\n  \"max_results\": 8\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        832,
+        0
+      ],
+      "id": "be5e756a-399f-464e-a44a-51c7b5e10f84",
+      "name": "nfa-videos"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "3689ddd6-6e5c-4382-9e5f-34f994891b4a",
+              "leftValue": "={{ $('Webhook').first().body.google_token || '' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "b0eb08da-62ce-4927-9788-9e4c75717c6b",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8000/api/calendar/schedule",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"user_id\": \"{{ $('Webhook').item.json.body.user_id }}\",\n  \"exercise_type\": \"{{ $('recommend').item.json.exercises[0].name }}\",\n  \"scheduled_time\": \"{{ $('Webhook').item.json.body.scheduled_time }}\",\n  \"duration_minutes\": 30,\n  \"google_token\": \"{{ $('Webhook').item.json.body.google_token }}\"\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1248,
+        -96
+      ],
+      "id": "53fd4caa-e910-4bdf-9d5b-a8f553401648",
+      "name": "calendar/schedule"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "process-document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "process-document": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond to Webhook": {
+      "main": [
+        [
+          {
+            "node": "recommend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "recommend": {
+      "main": [
+        [
+          {
+            "node": "nfa-videos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "nfa-videos": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "calendar/schedule",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "db48ca56-53aa-4bd3-8873-665e068e9c00",
+  "meta": {
+    "instanceId": "6437c26f67e54dd482bd8ad76c139ab15ebebf4cb36739b6d292b20d3bf0bec2"
+  },
+  "id": "rqWvRg8t4ioVHI2s",
+  "tags": []
+}

@@ -105,7 +105,7 @@ function ExercisePageInner() {
     if (uploadedFiles.length > 0) {
       setLoadingStep("문서 분류 및 정보 추출 중...");
       const results = await Promise.all(
-        uploadedFiles.map((f) => api.processDocument(f).catch(() => null))
+        uploadedFiles.map((f) => api.processDocument(f, { user_id: USER_ID, symptoms }).catch(() => null))
       );
       const valid = results.filter(Boolean) as ProcessDocumentResult[];
       setDocResults(valid);
