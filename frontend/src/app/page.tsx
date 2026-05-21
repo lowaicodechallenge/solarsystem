@@ -442,7 +442,7 @@ export default function Home() {
               <div className="flex items-center gap-2">
                 <h4 className="text-[#e5e2e1] text-xs font-bold uppercase tracking-widest">예정된 운동</h4>
                 {gcalConnected && (
-                  <span className="px-1.5 py-0.5 bg-[#006f46]/40 text-[#00e293] text-[10px] rounded-full border border-[#00e293]/20">GCal</span>
+                  <span className="px-1.5 py-0.5 bg-[#006f46]/40 text-[#00e293] text-[10px] rounded-full border border-[#00e293]/20">Google Calendar</span>
                 )}
               </div>
               <Link href="/calendar" className="text-[#c3c0ff] text-[10px] hover:underline">일정 관리</Link>
