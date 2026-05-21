@@ -1,4 +1,17 @@
-export const USER_ID = "user_default";
+export const USER_ID =
+  typeof window !== "undefined"
+    ? (() => {
+        const saved = localStorage.getItem("fitai_user_id");
+        if (saved) return saved;
+        localStorage.removeItem("fitai_symptoms");
+        localStorage.removeItem("fitai_posture_analysis");
+        localStorage.removeItem("fitai_last_document");
+        localStorage.removeItem("fitai_health_documents");
+        const newId = `user_${Math.random().toString(36).slice(2, 9)}`;
+        localStorage.setItem("fitai_user_id", newId);
+        return newId;
+      })()
+    : "user_default";
 
 export const EXERCISES = [
   { id: "squat", name: "스쿼트", emoji: "🦵" },
