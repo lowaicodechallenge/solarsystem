@@ -266,6 +266,7 @@ export type WeeklyReportResult = {
   stats: {
     period_days: number;
     session_count: number;
+    posture_scan_count: number;
     gcal_session_count: number;
     avg_score: number;
     best_score: number;

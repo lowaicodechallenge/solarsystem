@@ -4,7 +4,7 @@ import { GoogleOAuthProvider, useGoogleLogin } from "@react-oauth/google";
 import { format, addDays, startOfDay, setHours, setMinutes } from "date-fns";
 import { ko } from "date-fns/locale";
 
-const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "1028156401008-163i48haeg8riirt6t1fqeq9g223qghg.apps.googleusercontent.com";
+const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "1028156401008-163i48haeg8riirt6t1fqeq9g223qghg.apps.googleusercontent.com";
 const HOURS = Array.from({ length: 17 }, (_, i) => i + 6); // 06:00 ~ 22:00
 const DAYS = 7;
 const EVENT_MARKER = "솔메이트"; // 우리가 만든 운동 이벤트 식별용 (summary에 포함)

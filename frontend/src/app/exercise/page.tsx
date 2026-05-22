@@ -53,6 +53,8 @@ function ExercisePageInner() {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [analysisMode, setAnalysisMode] = useState<AnalysisMode | null>(null);
   const [nfaVideos, setNfaVideos] = useState<NFAVideo[]>([]);
+  const [bookmarks, setBookmarks] = useState<NFAVideo[]>([]);
+  const [bookmarkOpen, setBookmarkOpen] = useState(false);
 
   useEffect(() => {
     try {
@@ -68,7 +70,20 @@ function ExercisePageInner() {
         if (docs.length > 0) setStoredDocResults(docs);
       }
     } catch {}
+    try {
+      const bRaw = localStorage.getItem("fitai_bookmarks");
+      if (bRaw) setBookmarks(JSON.parse(bRaw));
+    } catch {}
   }, []);
+
+  const toggleBookmark = (video: NFAVideo) => {
+    setBookmarks((prev) => {
+      const exists = prev.some((b) => b.video_url === video.video_url);
+      const next = exists ? prev.filter((b) => b.video_url !== video.video_url) : [...prev, video];
+      localStorage.setItem("fitai_bookmarks", JSON.stringify(next));
+      return next;
+    });
+  };
 
   const handleFiles = (files: FileList | null) => {
     if (!files) return;
@@ -200,6 +215,64 @@ function ExercisePageInner() {
       </div>
 
       <div className="flex flex-col gap-5 max-w-3xl mx-auto w-full">
+        {/* 북마크 섹션 (토글) */}
+        {bookmarks.length > 0 && (
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => setBookmarkOpen((o) => !o)}
+              className="flex items-center gap-2 text-left group"
+            >
+              <span className="material-symbols-outlined text-[#ffd60a]" style={{ fontSize: "18px", fontVariationSettings: "'FILL' 1" }}>bookmark</span>
+              <span className="font-oswald text-base font-bold text-[#e5e2e1] uppercase group-hover:text-[#ffd60a] transition-colors">북마크 영상</span>
+              <span className="px-2 py-0.5 bg-[#ffd60a]/20 text-[#ffd60a] text-[10px] rounded-full border border-[#ffd60a]/30">{bookmarks.length}</span>
+              <span className="material-symbols-outlined text-[#c7c4da]/50 ml-auto" style={{ fontSize: "18px" }}>
+                {bookmarkOpen ? "expand_less" : "expand_more"}
+              </span>
+            </button>
+            {bookmarkOpen && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {bookmarks.map((v, i) => (
+                  <div key={i} className="glass-card overflow-hidden flex flex-col group hover:border-[#ffd60a]/60 transition-colors relative">
+                    <a href={v.video_url} target="_blank" rel="noopener noreferrer" className="flex flex-col flex-1"
+                      onClick={() => {
+                        const params = new URLSearchParams();
+                        params.set("user_id", USER_ID);
+                        params.set("exercise_type", "nfa_video");
+                        params.set("duration", "0");
+                        params.set("avg_score", String(Math.round(((posture?.front?.score ?? 0) + (posture?.side?.score ?? 0)) / 2) || 75));
+                        api.savePoseSession(params).catch(() => {});
+                      }}
+                    >
+                      <div className="relative aspect-video bg-[#0d0d0d] overflow-hidden">
+                        {v.thumbnail_url ? (
+                          <img src={v.thumbnail_url} alt={v.title} className="w-full h-full object-cover group-hover:opacity-80 transition-opacity" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <span className="material-symbols-outlined text-[#c3c0ff]/20" style={{ fontSize: "40px" }}>play_circle</span>
+                          </div>
+                        )}
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <span className="material-symbols-outlined text-white bg-[#050505]/70 rounded-full p-1" style={{ fontSize: "32px" }}>play_circle</span>
+                        </div>
+                      </div>
+                      <div className="p-3">
+                        <p className="text-xs font-semibold text-[#e5e2e1] line-clamp-2 leading-snug">{v.title}</p>
+                      </div>
+                    </a>
+                    <button
+                      onClick={() => toggleBookmark(v)}
+                      className="absolute top-2 right-2 p-1.5 rounded-full bg-[#050505]/70 text-[#ffd60a] hover:scale-110 transition-transform"
+                      title="북마크 해제"
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: "18px", fontVariationSettings: "'FILL' 1" }}>bookmark</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Input summary */}
         <div className="glass-card p-5 flex flex-col gap-5">
           <h2 className="text-sm font-semibold text-[#e5e2e1] flex items-center gap-2">
@@ -592,68 +665,69 @@ function ExercisePageInner() {
               </span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {nfaVideos.map((v, i) => (
-                <a
-                  key={i}
-                  href={v.video_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="glass-card overflow-hidden flex flex-col group hover:border-[#4a3aff]/60 transition-colors"
-                >
-                  {/* 썸네일 */}
-                  <div className="relative aspect-video bg-[#0d0d0d] overflow-hidden">
-                    {v.thumbnail_url ? (
-                      <img
-                        src={v.thumbnail_url}
-                        alt={v.title}
-                        className="w-full h-full object-cover group-hover:opacity-80 transition-opacity"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <span
-                          className="material-symbols-outlined text-[#c3c0ff]/20"
-                          style={{ fontSize: "40px" }}
-                        >
-                          play_circle
-                        </span>
+              {nfaVideos.map((v, i) => {
+                const isBookmarked = bookmarks.some((b) => b.video_url === v.video_url);
+                return (
+                  <div key={i} className="glass-card overflow-hidden flex flex-col group hover:border-[#4a3aff]/60 transition-colors relative">
+                    <a
+                      href={v.video_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex flex-col flex-1"
+                      onClick={() => {
+                        const params = new URLSearchParams();
+                        params.set("user_id", USER_ID);
+                        params.set("exercise_type", "nfa_video");
+                        params.set("duration", "0");
+                        params.set("avg_score", String(Math.round(((posture?.front?.score ?? 0) + (posture?.side?.score ?? 0)) / 2) || 75));
+                        api.savePoseSession(params).catch(() => {});
+                      }}
+                    >
+                      {/* 썸네일 */}
+                      <div className="relative aspect-video bg-[#0d0d0d] overflow-hidden">
+                        {v.thumbnail_url ? (
+                          <img
+                            src={v.thumbnail_url}
+                            alt={v.title}
+                            className="w-full h-full object-cover group-hover:opacity-80 transition-opacity"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <span className="material-symbols-outlined text-[#c3c0ff]/20" style={{ fontSize: "40px" }}>play_circle</span>
+                          </div>
+                        )}
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <span className="material-symbols-outlined text-white bg-[#050505]/70 rounded-full p-1" style={{ fontSize: "32px" }}>play_circle</span>
+                        </div>
                       </div>
-                    )}
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <span
-                        className="material-symbols-outlined text-white bg-[#050505]/70 rounded-full p-1"
-                        style={{ fontSize: "32px" }}
-                      >
-                        play_circle
-                      </span>
-                    </div>
-                  </div>
 
-                  {/* 영상 정보 */}
-                  <div className="p-3 flex flex-col gap-2">
-                    <p className="text-xs font-semibold text-[#e5e2e1] line-clamp-2 leading-snug">
-                      {v.title}
-                    </p>
-                    <div className="flex flex-wrap gap-1">
-                      {v.target_body_part.slice(0, 3).map((part) => (
-                        <span
-                          key={part}
-                          className="px-1.5 py-0.5 bg-[#4a3aff]/20 border border-[#c3c0ff]/20 text-[#c3c0ff] text-[10px] rounded-full"
-                        >
-                          {part}
-                        </span>
-                      ))}
-                      <span className="px-1.5 py-0.5 bg-white/5 border border-white/10 text-[#c7c4da]/60 text-[10px] rounded-full">
-                        {v.level === "beginner" ? "초급" : v.level === "intermediate" ? "중급" : "고급"}
-                      </span>
-                      {v.duration_min > 0 && (
-                        <span className="px-1.5 py-0.5 bg-white/5 border border-white/10 text-[#c7c4da]/60 text-[10px] rounded-full">
-                          {v.duration_min}분
-                        </span>
-                      )}
-                    </div>
+                      {/* 영상 정보 */}
+                      <div className="p-3 flex flex-col gap-2">
+                        <p className="text-xs font-semibold text-[#e5e2e1] line-clamp-2 leading-snug">{v.title}</p>
+                        <div className="flex flex-wrap gap-1">
+                          {v.target_body_part.slice(0, 3).map((part) => (
+                            <span key={part} className="px-1.5 py-0.5 bg-[#4a3aff]/20 border border-[#c3c0ff]/20 text-[#c3c0ff] text-[10px] rounded-full">{part}</span>
+                          ))}
+                          <span className="px-1.5 py-0.5 bg-white/5 border border-white/10 text-[#c7c4da]/60 text-[10px] rounded-full">
+                            {v.level === "beginner" ? "초급" : v.level === "intermediate" ? "중급" : "고급"}
+                          </span>
+                          {v.duration_min > 0 && (
+                            <span className="px-1.5 py-0.5 bg-white/5 border border-white/10 text-[#c7c4da]/60 text-[10px] rounded-full">{v.duration_min}분</span>
+                          )}
+                        </div>
+                      </div>
+                    </a>
+                    {/* 북마크 버튼 */}
+                    <button
+                      onClick={() => toggleBookmark(v)}
+                      className={`absolute top-2 right-2 p-1.5 rounded-full bg-[#050505]/70 transition-all hover:scale-110 ${isBookmarked ? "text-[#ffd60a]" : "text-white/40 hover:text-[#ffd60a]"}`}
+                      title={isBookmarked ? "북마크 해제" : "북마크"}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: "18px", fontVariationSettings: isBookmarked ? "'FILL' 1" : "'FILL' 0" }}>bookmark</span>
+                    </button>
                   </div>
-                </a>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

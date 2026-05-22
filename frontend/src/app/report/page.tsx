@@ -200,6 +200,13 @@ export default function ReportPage() {
             ) : (
               <p className="text-xs text-[#c7c4da] py-4 text-center">기록된 운동이 없습니다</p>
             )}
+            {(stats.posture_scan_count ?? 0) > 0 && (
+              <div className="mt-3 pt-3 border-t border-white/10 flex items-center gap-3">
+                <span className="text-lg">🧍</span>
+                <span className="flex-1 text-xs text-[#c7c4da]">자세 분석</span>
+                <span className="font-oswald text-lg text-[#c7c4da]">{stats.posture_scan_count}</span>
+              </div>
+            )}
           </div>
 
           {/* Achievements / Improvements / Focus */}

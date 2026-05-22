@@ -48,13 +48,17 @@ def _build_stats(sessions: list[WorkoutSession], period_days: int) -> dict:
     else:
         trend = "데이터 부족"
 
+    workout_sessions = [s for s in sessions if s.exercise_type != "posture_scan"]
+    posture_scan_count = len(sessions) - len(workout_sessions)
+
     breakdown: dict[str, int] = {}
-    for s in sessions:
+    for s in workout_sessions:
         breakdown[s.exercise_type] = breakdown.get(s.exercise_type, 0) + 1
 
     return {
         "period_days": period_days,
-        "session_count": len(sessions),
+        "session_count": len(workout_sessions),
+        "posture_scan_count": posture_scan_count,
         "avg_score": sum(scores) / len(scores),
         "best_score": max(scores),
         "worst_score": min(scores),
