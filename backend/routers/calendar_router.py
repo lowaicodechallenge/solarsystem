@@ -74,7 +74,11 @@ async def _create_google_event(token: str, event: dict) -> str:
 
 @router.post("/schedule")
 async def schedule_workout(req: ScheduleRequest, db: AsyncSession = Depends(get_db)):
-    scheduled_dt = datetime.fromisoformat(req.scheduled_time)
+    if req.scheduled_time:
+        scheduled_dt = datetime.fromisoformat(req.scheduled_time)
+    else:
+        scheduled_dt = datetime.now().replace(hour=10, minute=0, second=0, microsecond=0)
+        scheduled_dt = scheduled_dt.replace(day=scheduled_dt.day + 1)
 
     google_event_id = ""
     if req.google_token:

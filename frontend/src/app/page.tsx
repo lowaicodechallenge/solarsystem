@@ -144,7 +144,9 @@ export default function Home() {
       const results: ProcessDocumentResult[] = [];
       for (const file of uploadedFiles) {
         try {
-          const result = await api.processDocument(file, { user_id: USER_ID, symptoms: symptomsInput });
+          const gcalToken = localStorage.getItem("gcal_access_token") ?? undefined;
+          const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); tomorrow.setHours(10, 0, 0, 0);
+          const result = await api.processDocument(file, { user_id: USER_ID, symptoms: symptomsInput, google_token: gcalToken, scheduled_time: tomorrow.toISOString() });
           results.push(result);
           localStorage.setItem("fitai_last_document", JSON.stringify(result));
         } catch {}

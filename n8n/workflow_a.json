@@ -47,7 +47,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={\n  \"document_category\": \"{{ $('process-document').item.json.document_category }}\",\n  \"parsed_text\": \"{{ $('process-document').item.json.parsed_text }}\",\n  \"page_count\": \"{{ $('process-document').item.json.page_count }}\",\n  \"health_info\": {{ JSON.stringify($('process-document').item.json.health_info) }},\n  \"risk_tags\": {{ JSON.stringify($('process-document').item.json.risk_tags) }}\n}\n",
+        "responseBody": "={{ JSON.stringify($('process-document').item.json) }}",
         "options": {}
       },
       "type": "n8n-nodes-base.respondToWebhook",
@@ -65,7 +65,7 @@
         "url": "http://127.0.0.1:8000/api/workout/recommend",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"user_id\": \"{{ $('Webhook').item.json.body.user_id }}\",\n  \"posture_issues\": [],\n  \"front_score\": 0,\n  \"side_score\": 0,\n  \"symptoms\": \"{{ $('Webhook').item.json.body.symptoms }}\",\n  \"doc_text\": \"{{ $('process-document').item.json.parsed_text }}\",\n  \"health_info\": {{ JSON.stringify($('process-document').item.json.health_info) }},\n  \"risk_tags\": {{ JSON.stringify($('process-document').item.json.risk_tags) }}\n}\n\n",
+        "jsonBody": "={{ JSON.stringify({ user_id: $('Webhook').item.json.body.user_id, posture_issues: [], front_score: 0, side_score: 0, symptoms: $('Webhook').item.json.body.symptoms || '', doc_text: $('process-document').item.json.parsed_text || '', health_info: $('process-document').item.json.health_info, risk_tags: $('process-document').item.json.risk_tags }) }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -83,7 +83,7 @@
         "url": "http://127.0.0.1:8000/api/workout/nfa-videos",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"age\": 30,\n  \"goal\": \"{{ $('recommend').item.json.analysis.main_concerns.join(' ') }} {{ $('recommend').item.json.analysis.risk_areas.join(' ') }}\",\n  \"pain_area\": {{ JSON.stringify($('recommend').item.json.analysis.main_concerns) }},\n  \"place\": \"home\",\n  \"level\": \"beginner\",\n  \"available_time_min\": 15,\n  \"health_info\": {{ JSON.stringify($('process-document').item.json.health_info) }},\n  \"risk_tags\": {{ JSON.stringify($('process-document').item.json.risk_tags) }},\n  \"max_results\": 8\n}\n",
+        "jsonBody": "={{ JSON.stringify({ age: 30, goal: (($('recommend').item.json.analysis || {}).main_concerns || []).concat(($('recommend').item.json.analysis || {}).risk_areas || []).join(' '), pain_area: ($('recommend').item.json.analysis || {}).main_concerns || [], place: 'home', level: 'beginner', available_time_min: 15, health_info: $('process-document').item.json.health_info, risk_tags: $('process-document').item.json.risk_tags, max_results: 8 }) }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -107,7 +107,7 @@
           "conditions": [
             {
               "id": "3689ddd6-6e5c-4382-9e5f-34f994891b4a",
-              "leftValue": "={{ $('Webhook').first().body.google_token || '' }}",
+              "leftValue": "={{ $('Webhook').first().json.body.google_token || '' }}",
               "rightValue": "",
               "operator": {
                 "type": "string",
@@ -135,7 +135,7 @@
         "url": "http://127.0.0.1:8000/api/calendar/schedule",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"user_id\": \"{{ $('Webhook').item.json.body.user_id }}\",\n  \"exercise_type\": \"{{ $('recommend').item.json.exercises[0].name }}\",\n  \"scheduled_time\": \"{{ $('Webhook').item.json.body.scheduled_time }}\",\n  \"duration_minutes\": 30,\n  \"google_token\": \"{{ $('Webhook').item.json.body.google_token }}\"\n}\n",
+        "jsonBody": "={{ JSON.stringify({ user_id: $('Webhook').item.json.body.user_id, exercise_type: (($('recommend').item.json.exercises || [])[0] || {}).name || '', scheduled_time: $('Webhook').item.json.body.scheduled_time || '', duration_minutes: 30, google_token: $('Webhook').item.json.body.google_token || '' }) }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
