@@ -56,18 +56,43 @@ function ExercisePageInner() {
   const [bookmarks, setBookmarks] = useState<NFAVideo[]>([]);
   const [bookmarkOpen, setBookmarkOpen] = useState(false);
   const [playingVideo, setPlayingVideo] = useState<NFAVideo | null>(null);
+  const watchRef = useRef<{ startTime: number; accumulated: number; video: NFAVideo | null }>({
+    startTime: 0,
+    accumulated: 0,
+    video: null,
+  });
 
   const handleVideoClick = (v: NFAVideo) => {
     setPlayingVideo(v);
-    const params = new URLSearchParams();
-    params.set("user_id", USER_ID);
-    params.set("exercise_type", "nfa_video");
-    params.set("duration", "0");
-    params.set(
-      "avg_score",
-      String(Math.round(((posture?.front?.score ?? 0) + (posture?.side?.score ?? 0)) / 2) || 75)
-    );
-    api.savePoseSession(params).catch(() => {});
+    watchRef.current = { startTime: 0, accumulated: 0, video: v };
+  };
+
+  const handleVideoPlay = () => {
+    watchRef.current.startTime = Date.now();
+  };
+
+  const handleVideoPause = () => {
+    if (watchRef.current.startTime > 0) {
+      watchRef.current.accumulated += (Date.now() - watchRef.current.startTime) / 1000;
+      watchRef.current.startTime = 0;
+    }
+  };
+
+  const handleCloseModal = () => {
+    handleVideoPause();
+    const duration = Math.round(watchRef.current.accumulated);
+    if (watchRef.current.video) {
+      const params = new URLSearchParams();
+      params.set("user_id", USER_ID);
+      params.set("exercise_type", "nfa_video");
+      params.set("duration", String(duration));
+      params.set(
+        "avg_score",
+        String(Math.round(((posture?.front?.score ?? 0) + (posture?.side?.score ?? 0)) / 2) || 75)
+      );
+      api.savePoseSession(params).catch(() => {});
+    }
+    setPlayingVideo(null);
   };
 
   useEffect(() => {
@@ -224,7 +249,7 @@ function ExercisePageInner() {
           운동 시작
         </h1>
         <p className="text-sm text-[#c7c4da]/50 mt-1">
-          AI가 내 자세·증상·임상 자료를 분석해 맞춤 운동을 추천합니다.
+          인바디 결과지를 업로드하면 더 정밀한 운동을 추천합니다. 없다면 자세 분석만으로도 시작할 수 있어요.
         </p>
       </div>
 
@@ -364,7 +389,7 @@ function ExercisePageInner() {
           <div className="flex flex-col gap-2">
             <p className="text-[10px] font-semibold text-[#c3c0ff]/60 uppercase tracking-widest flex items-center gap-1.5">
               <span className="material-symbols-outlined" style={{ fontSize: "14px" }}>upload_file</span>
-              임상 자료 (선택)
+              인바디 결과지 <span className="text-[#c3c0ff]/50 font-normal normal-case">업로드 권장 · 없으면 자세 분석으로 대체</span>
             </p>
 
             {/* Dashboard에서 불러온 문서 */}
@@ -422,7 +447,7 @@ function ExercisePageInner() {
                 upload_file
               </span>
               <p className="text-xs text-[#c7c4da]/40">
-                PDF, JPG, PNG, WebP — 드래그하거나 클릭해서 업로드
+                인바디 결과지 — JPG, PNG, PDF 드래그하거나 클릭해서 업로드
               </p>
             </div>
             <input
@@ -737,7 +762,7 @@ function ExercisePageInner() {
       {playingVideo && (
         <div
           className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={() => setPlayingVideo(null)}
+          onClick={handleCloseModal}
         >
           <div
             className="relative w-full max-w-4xl"
@@ -745,7 +770,7 @@ function ExercisePageInner() {
           >
             <button
               type="button"
-              onClick={() => setPlayingVideo(null)}
+              onClick={handleCloseModal}
               className="absolute -top-10 right-0 text-white/70 hover:text-white transition-colors"
               aria-label="닫기"
             >
@@ -758,6 +783,9 @@ function ExercisePageInner() {
               autoPlay
               playsInline
               className="w-full rounded-lg bg-black aspect-video"
+              onPlay={handleVideoPlay}
+              onPause={handleVideoPause}
+              onEnded={handleCloseModal}
             >
               <track kind="captions" />
             </video>

@@ -268,6 +268,7 @@ export type WeeklyReportResult = {
     session_count: number;
     posture_scan_count: number;
     gcal_session_count: number;
+    total_duration_seconds: number;
     avg_score: number;
     best_score: number;
     worst_score: number;

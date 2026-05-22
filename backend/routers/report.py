@@ -29,6 +29,8 @@ def _build_stats(sessions: list[WorkoutSession], period_days: int) -> dict:
         return {
             "period_days": period_days,
             "session_count": 0,
+            "posture_scan_count": 0,
+            "total_duration_seconds": 0,
             "avg_score": 0.0,
             "best_score": 0.0,
             "worst_score": 0.0,
@@ -55,10 +57,13 @@ def _build_stats(sessions: list[WorkoutSession], period_days: int) -> dict:
     for s in workout_sessions:
         breakdown[s.exercise_type] = breakdown.get(s.exercise_type, 0) + 1
 
+    total_duration_seconds = sum(s.duration_seconds for s in workout_sessions if s.duration_seconds)
+
     return {
         "period_days": period_days,
         "session_count": len(workout_sessions),
         "posture_scan_count": posture_scan_count,
+        "total_duration_seconds": total_duration_seconds,
         "avg_score": sum(scores) / len(scores),
         "best_score": max(scores),
         "worst_score": min(scores),

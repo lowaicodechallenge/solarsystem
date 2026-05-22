@@ -396,9 +396,18 @@ async def generate_weekly_report(
 사용자의 한 주간 운동 기록과 자세 데이터를 분석해 따뜻하고 동기부여가 되는 주간 리포트를 작성합니다.
 의료 진단이 아닌 보조적 운동 관리 관점에서 조언하며, 반드시 한국어로 답변하세요."""
 
+    EXERCISE_NAMES = {
+        "nfa_video": "추천 운동 영상",
+        "posture_scan": "자세 분석",
+        "squat": "스쿼트",
+        "pushup": "푸시업",
+        "plank": "플랭크",
+        "stretch": "스트레칭",
+    }
+
     breakdown = stats.get("exercise_breakdown", {})
     breakdown_text = (
-        "\n".join(f"- {k}: {v}회" for k, v in breakdown.items())
+        "\n".join(f"- {EXERCISE_NAMES.get(k, k)}: {v}회" for k, v in breakdown.items())
         if breakdown else "- 기록 없음"
     )
     posture_text = (

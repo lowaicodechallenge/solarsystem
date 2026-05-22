@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { api, type ProcessDocumentResult } from "@/lib/api";
-import { EXERCISES, getScoreColor, getScoreLabel, USER_ID } from "@/lib/utils";
+import { EXERCISES, getScoreLabel, USER_ID } from "@/lib/utils";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 
@@ -10,6 +10,7 @@ type Session = {
   id: string;
   exercise_type: string;
   avg_score: number;
+  duration_seconds: number;
   created_at: string;
 };
 
@@ -30,8 +31,6 @@ export default function Home() {
   const [upcoming, setUpcoming] = useState<ScheduledWorkout[]>([]);
   const [gcalEvents, setGcalEvents] = useState<GCalEvent[]>([]);
   const [gcalConnected, setGcalConnected] = useState(false);
-  const [gcalLastWorkout, setGcalLastWorkout] = useState<GCalEvent | null>(null);
-  const [gcalTotalCount, setGcalTotalCount] = useState(0);
   const [postureAnalysis, setPostureAnalysis] = useState<{
     date: string;
     front: { score: number } | null;
@@ -90,19 +89,6 @@ export default function Home() {
         .then((data) => setGcalEvents(data.items ?? []))
         .catch(() => {});
 
-      const oneYearAgo = encodeURIComponent(new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString());
-      const now = encodeURIComponent(new Date().toISOString());
-      fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${oneYearAgo}&timeMax=${now}&maxResults=100&orderBy=startTime&singleEvents=true&q=${encodeURIComponent("솔메이트")}`,
-        { headers: { Authorization: `Bearer ${gcalToken}` } }
-      )
-        .then((r) => (r.status === 401 ? { items: [] } : r.json()))
-        .then((data) => {
-          const items: GCalEvent[] = data.items ?? [];
-          setGcalTotalCount(items.length);
-          setGcalLastWorkout(items[items.length - 1] ?? null);
-        })
-        .catch(() => {});
     }
 
     const saved = localStorage.getItem("fitai_symptoms");
@@ -208,15 +194,18 @@ export default function Home() {
               <h3 className="font-oswald text-5xl font-bold text-white mb-3 leading-tight uppercase">
                 START<br/>WORKOUT
               </h3>
-              <p className="text-[#dad7ff] text-sm mb-6 max-w-xs">
-                AI 자세 분석으로 정확한 자세를 교정하며 홈트를 시작하세요.
+              <p className="text-[#dad7ff] text-sm mb-2 max-w-xs">
+                인바디 결과지 업로드로 맞춤 운동을 추천받으세요.
+              </p>
+              <p className="text-[#dad7ff]/60 text-xs mb-5 max-w-xs">
+                인바디가 없다면 자세 분석만으로도 시작할 수 있어요.
               </p>
               <Link
-                href="/scanpose"
+                href="/exercise"
                 className="inline-flex items-center gap-2 bg-white text-[#4a3aff] font-bold text-xs px-8 py-3 rounded-full hover:scale-105 active:scale-95 transition-transform uppercase tracking-wider"
               >
-                Launch Scan
-                <span className="material-symbols-outlined" style={{ fontSize: "16px" }}>rocket_launch</span>
+                운동 시작
+                <span className="material-symbols-outlined" style={{ fontSize: "16px" }}>fitness_center</span>
               </Link>
             </div>
             <span className="material-symbols-outlined text-white/20 group-hover:scale-110 group-hover:rotate-12 transition-all duration-500 hidden md:block"
@@ -275,6 +264,18 @@ export default function Home() {
             placeholder="현재 느껴지는 신체적 불편함이나 통증 부위를 기록해주세요..."
             rows={docResults.length === 0 && lastDocData ? 4 : 5}
           />
+          <div className="flex flex-wrap gap-1.5">
+            {["무릎통증", "거북목", "허리디스크", "어깨결림", "골반불균형", "손목통증", "발목통증"].map((ex) => (
+              <button
+                key={ex}
+                type="button"
+                onClick={() => setSymptomsInput((prev) => prev ? `${prev}, ${ex}` : ex)}
+                className="px-2.5 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] text-[#c7c4da]/60 hover:bg-[#4a3aff]/20 hover:text-[#c3c0ff] hover:border-[#c3c0ff]/30 transition-colors"
+              >
+                + {ex}
+              </button>
+            ))}
+          </div>
           {symptoms && (
             <div className="flex items-start justify-between gap-2">
               <div className="flex flex-wrap gap-1.5 flex-1">
@@ -293,20 +294,29 @@ export default function Home() {
             </div>
           )}
 
+          {/* 분석 흐름 안내 */}
+          <div className="flex items-center gap-2 px-3 py-2 bg-[#4a3aff]/10 border border-[#c3c0ff]/20 rounded-lg">
+            <span className="material-symbols-outlined text-[#c3c0ff]" style={{ fontSize: "14px", fontVariationSettings: "'FILL' 1" }}>info</span>
+            <p className="text-[10px] text-[#c7c4da]/70 leading-relaxed">
+              <span className="text-[#c3c0ff] font-semibold">인바디 업로드</span>로 정밀 운동 추천 →
+              인바디가 없으면 <span className="text-[#c7c4da]">자세 분석</span>으로 시작 가능
+            </p>
+          </div>
+
           {/* File upload */}
           <div
             className={`flex items-center gap-3 py-5 px-4 border border-dashed rounded-lg cursor-pointer transition-colors ${
-              isDragging ? "border-[#c3c0ff]/60 bg-[#4a3aff]/10" : "border-white/10 bg-white/[0.02] hover:border-[#c3c0ff]/30"
+              isDragging ? "border-[#c3c0ff]/60 bg-[#4a3aff]/10" : "border-[#c3c0ff]/30 bg-[#4a3aff]/5 hover:border-[#c3c0ff]/50 hover:bg-[#4a3aff]/10"
             }`}
             onClick={() => fileInputRef.current?.click()}
             onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
             onDragLeave={() => setIsDragging(false)}
             onDrop={(e) => { e.preventDefault(); setIsDragging(false); handleFiles(e.dataTransfer.files); }}
           >
-            <span className="material-symbols-outlined text-[#c7c4da]" style={{ fontSize: "22px" }}>upload_file</span>
+            <span className="material-symbols-outlined text-[#c3c0ff]" style={{ fontSize: "22px" }}>upload_file</span>
             <div className="flex-1">
-              <p className="text-xs font-medium text-[#e5e2e1]">임상 자료 업로드</p>
-              <p className="text-[10px] text-[#c7c4da]/60">PDF, JPG, PNG, WebP</p>
+              <p className="text-xs font-medium text-[#e5e2e1]">인바디 결과지 업로드 <span className="text-[#c3c0ff] text-[10px] font-bold ml-1">권장</span></p>
+              <p className="text-[10px] text-[#c7c4da]/60">인바디 결과지 — JPG, PNG, PDF</p>
             </div>
             <span className="text-[#c3c0ff] text-xs font-semibold">Browse</span>
           </div>
@@ -512,32 +522,9 @@ export default function Home() {
         <div className="md:col-span-12 glass-card rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
             <h4 className="text-[#e5e2e1] text-xs font-bold uppercase tracking-widest">Recent Activity</h4>
-            {gcalConnected && <span className="px-1.5 py-0.5 bg-[#006f46]/40 text-[#00e293] text-[10px] rounded-full border border-[#00e293]/20">Google Calendar</span>}
           </div>
 
-          {gcalConnected ? (
-            gcalLastWorkout ? (
-              <div className="flex items-center gap-4 p-4 rounded-xl bg-[#006f46]/10 border border-[#00e293]/20">
-                <div className="w-11 h-11 rounded-lg bg-[#006f46]/20 flex items-center justify-center text-xl shrink-0">🏋️</div>
-                <div className="flex-1">
-                  <div className="flex justify-between items-start">
-                    <h4 className="text-xs font-bold text-[#e5e2e1]">{gcalLastWorkout.summary}</h4>
-                    <span className="text-[10px] text-[#c7c4da]">
-                      {format(new Date(gcalLastWorkout.start.dateTime ?? gcalLastWorkout.start.date ?? ""), "M.d HH:mm")}
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-[#00e293] mt-0.5">
-                    {format(new Date(gcalLastWorkout.start.dateTime ?? gcalLastWorkout.start.date ?? ""), "EEE요일", { locale: ko })} · Google Calendar
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-6 text-[#c7c4da] text-sm">
-                <span className="material-symbols-outlined block mb-2 text-white/20" style={{ fontSize: "36px" }}>fitness_center</span>
-                아직 완료된 운동이 없습니다
-              </div>
-            )
-          ) : history.length > 0 ? (
+          {history.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {history.slice(0, 4).map((s) => (
                 <div key={s.id} className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] hover:bg-white/[0.07] transition-colors group border border-white/5">
@@ -546,7 +533,16 @@ export default function Home() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-semibold text-[#e5e2e1] truncate">{exName(s.exercise_type)}</p>
-                    <p className="text-[10px] text-[#c7c4da]">{format(new Date(s.created_at), "M.d HH:mm")}</p>
+                    <p className="text-[10px] text-[#c7c4da]">
+                      {format(new Date(s.created_at), "M.d HH:mm")}
+                      {s.duration_seconds > 0 && (
+                        <span className="ml-1.5 text-[#00e293]">
+                          {s.duration_seconds >= 60
+                            ? `${Math.floor(s.duration_seconds / 60)}분`
+                            : `${s.duration_seconds}초`}
+                        </span>
+                      )}
+                    </p>
                   </div>
                   <span className="font-oswald text-2xl font-bold text-[#c3c0ff] group-hover:scale-110 transition-transform">
                     {s.avg_score.toFixed(0)}
@@ -563,16 +559,17 @@ export default function Home() {
           )}
 
           <div className="mt-4 pt-3 border-t border-white/5 text-center">
-            {gcalConnected ? (
-              <span className="text-xs text-[#c7c4da]">
-                총 <span className="font-bold text-[#e5e2e1]">{gcalTotalCount}</span>회 운동 완료
-                {gcalTotalCount === 100 && "+"}
-              </span>
-            ) : (
-              <Link href="/calendar" className="text-xs text-[#c7c4da] hover:text-[#c3c0ff] transition-colors">
-                캘린더를 연동하고 운동 기록을 확인하세요 →
-              </Link>
-            )}
+            {(() => {
+              const todayStr = format(new Date(), "yyyy-MM-dd");
+              const todayCount = history.filter((s) => s.created_at.startsWith(todayStr)).length;
+              return (
+                <span className="text-xs text-[#c7c4da]">
+                  오늘 <span className="font-bold text-[#e5e2e1]">{todayCount}</span>회
+                  <span className="mx-2 text-white/20">·</span>
+                  총 <span className="font-bold text-[#e5e2e1]">{history.length}</span>회 운동 완료
+                </span>
+              );
+            })()}
           </div>
         </div>
       </div>

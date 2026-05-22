@@ -11,6 +11,7 @@ export default function ReportPage() {
   const [emailInput, setEmailInput] = useState("");
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailStatus, setEmailStatus] = useState<"idle" | "sent" | "error">("idle");
+  const [gcalPastCount, setGcalPastCount] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -47,6 +48,7 @@ export default function ReportPage() {
         if (r.ok) {
           const data = await r.json();
           gcalSessionCount = (data.items ?? []).length;
+          setGcalPastCount(gcalSessionCount);
         } else if (r.status === 401) {
           localStorage.removeItem("gcal_access_token");
         }
@@ -136,31 +138,48 @@ export default function ReportPage() {
           </div>
 
           {/* Stat tiles */}
-          <div className="md:col-span-3 glass-card rounded-xl p-5 flex flex-col items-center justify-center text-center">
+          <div className="md:col-span-2 glass-card rounded-xl p-5 flex flex-col items-center justify-center text-center">
             <p className="text-[#c7c4da] text-[10px] uppercase tracking-widest mb-2 font-semibold">운동 횟수</p>
             <p className="font-oswald text-5xl font-bold text-[#e5e2e1]">{stats.session_count + (stats.gcal_session_count ?? 0)}</p>
             <p className="text-[#c7c4da] text-[10px] mt-1">최근 {stats.period_days}일</p>
           </div>
           <div className="md:col-span-3 glass-card rounded-xl p-5 flex flex-col items-center justify-center text-center">
-            <p className="text-[#c7c4da] text-[10px] uppercase tracking-widest mb-2 font-semibold">평균 점수</p>
-            <p className="font-oswald text-5xl font-bold" style={{ color: getScoreColor(stats.avg_score) }}>
-              {stats.session_count > 0 ? stats.avg_score.toFixed(0) : "--"}
-            </p>
-            <p className="text-[10px] mt-1" style={{ color: getScoreColor(stats.avg_score) }}>
-              {stats.session_count > 0 ? getScoreLabel(stats.avg_score) : ""}
-            </p>
+            <p className="text-[#c7c4da] text-[10px] uppercase tracking-widest mb-2 font-semibold">총 운동 시간</p>
+            {(() => {
+              const sec = stats.total_duration_seconds ?? 0;
+              const h = Math.floor(sec / 3600);
+              const m = Math.floor((sec % 3600) / 60);
+              const s = sec % 60;
+              return (
+                <>
+                  <p className="font-oswald text-5xl font-bold text-[#00e293]">
+                    {h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}분` : sec > 0 ? `${s}초` : "--"}
+                  </p>
+                  <p className="text-[#c7c4da] text-[10px] mt-1">최근 {stats.period_days}일</p>
+                </>
+              );
+            })()}
           </div>
           <div className="md:col-span-3 glass-card rounded-xl p-5 flex flex-col items-center justify-center text-center">
+            <p className="text-[#c7c4da] text-[10px] uppercase tracking-widest mb-2 font-semibold">평균 점수</p>
+            <p className="font-oswald text-5xl font-bold" style={{ color: getScoreColor(stats.avg_score) }}>
+              {(stats.session_count + (stats.posture_scan_count ?? 0)) > 0 ? stats.avg_score.toFixed(0) : "--"}
+            </p>
+            <p className="text-[10px] mt-1" style={{ color: getScoreColor(stats.avg_score) }}>
+              {(stats.session_count + (stats.posture_scan_count ?? 0)) > 0 ? getScoreLabel(stats.avg_score) : ""}
+            </p>
+          </div>
+          <div className="md:col-span-2 glass-card rounded-xl p-5 flex flex-col items-center justify-center text-center">
             <p className="text-[#c7c4da] text-[10px] uppercase tracking-widest mb-2 font-semibold">점수 추세</p>
             <span className="material-symbols-outlined" style={{ fontSize: "44px", color: trendColor }}>
               {trendIcon}
             </span>
             <p className="text-xs mt-1 font-semibold" style={{ color: trendColor }}>{stats.score_trend}</p>
           </div>
-          <div className="md:col-span-3 glass-card rounded-xl p-5 flex flex-col items-center justify-center text-center">
+          <div className="md:col-span-2 glass-card rounded-xl p-5 flex flex-col items-center justify-center text-center">
             <p className="text-[#c7c4da] text-[10px] uppercase tracking-widest mb-2 font-semibold">최고 / 최저</p>
             <p className="font-oswald text-3xl font-bold text-[#e5e2e1]">
-              {stats.session_count > 0 ? `${stats.best_score.toFixed(0)} / ${stats.worst_score.toFixed(0)}` : "-- / --"}
+              {(stats.session_count + (stats.posture_scan_count ?? 0)) > 0 ? `${stats.best_score.toFixed(0)} / ${stats.worst_score.toFixed(0)}` : "-- / --"}
             </p>
           </div>
 
@@ -205,6 +224,13 @@ export default function ReportPage() {
                 <span className="text-lg">🧍</span>
                 <span className="flex-1 text-xs text-[#c7c4da]">자세 분석</span>
                 <span className="font-oswald text-lg text-[#c7c4da]">{stats.posture_scan_count}</span>
+              </div>
+            )}
+            {gcalPastCount > 0 && (
+              <div className="mt-3 pt-3 border-t border-white/10 flex items-center gap-3">
+                <span className="text-lg">📅</span>
+                <span className="flex-1 text-xs text-[#00e293]">운동 계획 완료</span>
+                <span className="font-oswald text-lg text-[#00e293]">{gcalPastCount}</span>
               </div>
             )}
           </div>

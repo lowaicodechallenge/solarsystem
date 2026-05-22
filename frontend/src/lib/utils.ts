@@ -19,7 +19,7 @@ export const EXERCISES = [
   { id: "plank", name: "플랭크", emoji: "🏋️" },
   { id: "stretch", name: "스트레칭", emoji: "🧘" },
   { id: "posture_scan", name: "자세 분석", emoji: "🧍" },
-  { id: "nfa_video", name: "추천 영상 운동", emoji: "▶️" },
+  { id: "nfa_video", name: "추천 운동 영상", emoji: "▶️" },
 ];
 
 export function getScoreColor(score: number): string {
