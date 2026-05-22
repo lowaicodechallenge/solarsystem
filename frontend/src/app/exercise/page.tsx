@@ -55,6 +55,20 @@ function ExercisePageInner() {
   const [nfaVideos, setNfaVideos] = useState<NFAVideo[]>([]);
   const [bookmarks, setBookmarks] = useState<NFAVideo[]>([]);
   const [bookmarkOpen, setBookmarkOpen] = useState(false);
+  const [playingVideo, setPlayingVideo] = useState<NFAVideo | null>(null);
+
+  const handleVideoClick = (v: NFAVideo) => {
+    setPlayingVideo(v);
+    const params = new URLSearchParams();
+    params.set("user_id", USER_ID);
+    params.set("exercise_type", "nfa_video");
+    params.set("duration", "0");
+    params.set(
+      "avg_score",
+      String(Math.round(((posture?.front?.score ?? 0) + (posture?.side?.score ?? 0)) / 2) || 75)
+    );
+    api.savePoseSession(params).catch(() => {});
+  };
 
   useEffect(() => {
     try {
@@ -233,15 +247,10 @@ function ExercisePageInner() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {bookmarks.map((v, i) => (
                   <div key={i} className="glass-card overflow-hidden flex flex-col group hover:border-[#ffd60a]/60 transition-colors relative">
-                    <a href={v.video_url} target="_blank" rel="noopener noreferrer" className="flex flex-col flex-1"
-                      onClick={() => {
-                        const params = new URLSearchParams();
-                        params.set("user_id", USER_ID);
-                        params.set("exercise_type", "nfa_video");
-                        params.set("duration", "0");
-                        params.set("avg_score", String(Math.round(((posture?.front?.score ?? 0) + (posture?.side?.score ?? 0)) / 2) || 75));
-                        api.savePoseSession(params).catch(() => {});
-                      }}
+                    <button
+                      type="button"
+                      onClick={() => handleVideoClick(v)}
+                      className="flex flex-col flex-1 text-left"
                     >
                       <div className="relative aspect-video bg-[#0d0d0d] overflow-hidden">
                         {v.thumbnail_url ? (
@@ -258,7 +267,7 @@ function ExercisePageInner() {
                       <div className="p-3">
                         <p className="text-xs font-semibold text-[#e5e2e1] line-clamp-2 leading-snug">{v.title}</p>
                       </div>
-                    </a>
+                    </button>
                     <button
                       onClick={() => toggleBookmark(v)}
                       className="absolute top-2 right-2 p-1.5 rounded-full bg-[#050505]/70 text-[#ffd60a] hover:scale-110 transition-transform"
@@ -669,19 +678,10 @@ function ExercisePageInner() {
                 const isBookmarked = bookmarks.some((b) => b.video_url === v.video_url);
                 return (
                   <div key={i} className="glass-card overflow-hidden flex flex-col group hover:border-[#4a3aff]/60 transition-colors relative">
-                    <a
-                      href={v.video_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex flex-col flex-1"
-                      onClick={() => {
-                        const params = new URLSearchParams();
-                        params.set("user_id", USER_ID);
-                        params.set("exercise_type", "nfa_video");
-                        params.set("duration", "0");
-                        params.set("avg_score", String(Math.round(((posture?.front?.score ?? 0) + (posture?.side?.score ?? 0)) / 2) || 75));
-                        api.savePoseSession(params).catch(() => {});
-                      }}
+                    <button
+                      type="button"
+                      onClick={() => handleVideoClick(v)}
+                      className="flex flex-col flex-1 text-left"
                     >
                       {/* 썸네일 */}
                       <div className="relative aspect-video bg-[#0d0d0d] overflow-hidden">
@@ -716,7 +716,7 @@ function ExercisePageInner() {
                           )}
                         </div>
                       </div>
-                    </a>
+                    </button>
                     {/* 북마크 버튼 */}
                     <button
                       onClick={() => toggleBookmark(v)}
@@ -732,6 +732,39 @@ function ExercisePageInner() {
           </div>
         )}
       </div>
+
+      {/* 영상 재생 모달 */}
+      {playingVideo && (
+        <div
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setPlayingVideo(null)}
+        >
+          <div
+            className="relative w-full max-w-4xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setPlayingVideo(null)}
+              className="absolute -top-10 right-0 text-white/70 hover:text-white transition-colors"
+              aria-label="닫기"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: "28px" }}>close</span>
+            </button>
+            <video
+              key={playingVideo.video_url}
+              src={playingVideo.video_url}
+              controls
+              autoPlay
+              playsInline
+              className="w-full rounded-lg bg-black aspect-video"
+            >
+              <track kind="captions" />
+            </video>
+            <p className="mt-3 text-sm font-semibold text-[#e5e2e1]">{playingVideo.title}</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
