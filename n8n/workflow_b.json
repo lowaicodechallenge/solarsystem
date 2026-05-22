@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "url": "http://127.0.0.1:8000/api/pose/history/user_id",
+        "url": "http://127.0.0.1:8000/api/pose/history/YOUR_USER_ID",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -17,7 +17,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\nconst data = items[0].json;\n\nconst sessions = Array.isArray(data) ? data : [];\n\nlet frontScores = [];\nlet sideScores = [];\n\nfor (const s of sessions) {\n  if (s.exercise_type === 'front') frontScores.push(s.avg_score);\n  if (s.exercise_type === 'side') sideScores.push(s.avg_score);\n}\n\nconst avg = (arr) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;\n\nreturn [{\n  json: {\n    user_id: 'user_id',\n    period_days: 7,\n    posture_scores: {\n      front: Math.round(avg(frontScores)),\n      side: Math.round(avg(sideScores))\n    }\n  }\n}];\n"
+        "jsCode": "const items = $input.all();\nconst data = items[0].json;\n\nconst sessions = Array.isArray(data) ? data : [];\n\nlet frontScores = [];\nlet sideScores = [];\n\nfor (const s of sessions) {\n  if (s.exercise_type === 'front') frontScores.push(s.avg_score);\n  if (s.exercise_type === 'side') sideScores.push(s.avg_score);\n}\n\nconst avg = (arr) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;\n\nreturn [{\n  json: {\n    user_id: 'YOUR_USER_ID',\n    period_days: 7,\n    posture_scores: {\n      front: Math.round(avg(frontScores)),\n      side: Math.round(avg(sideScores))\n    }\n  }\n}];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
