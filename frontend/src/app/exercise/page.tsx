@@ -162,7 +162,9 @@ function ExercisePageInner() {
     const analysisGoal = [
       ...(result.analysis.main_concerns ?? []),
       ...(result.analysis.risk_areas ?? []),
-    ].join(", ") || symptoms || allIssues[0] || "체력증진";
+    ]
+      .filter((c) => c && !c.includes("자세 데이터") && !c.includes("없습니다"))
+      .join(", ") || symptoms || allIssues[0] || "체력증진";
 
     const { videos: nfaResult } = await api.getNFAVideos({
       age,

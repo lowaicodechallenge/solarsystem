@@ -355,9 +355,18 @@ async def analyze_current_state(
     except Exception:
         pass
 
+    # posture_issues가 비어도 점수가 있으면 점수 기반 관심 항목 생성
+    if posture_issues:
+        fallback_concerns = posture_issues[:2]
+    elif front_score or side_score:
+        avg = round((front_score + side_score) / 2) if front_score and side_score else int(front_score or side_score)
+        fallback_concerns = [f"자세 점수 {avg}점 — 맞춤 운동으로 자세를 개선해보세요."]
+    else:
+        fallback_concerns = []
+
     return {
         "state_summary": "자세 분석 결과를 바탕으로 맞춤 운동을 추천해드립니다.",
-        "main_concerns": posture_issues[:2] if posture_issues else ["자세 데이터가 없습니다"],
+        "main_concerns": fallback_concerns,
         "risk_areas": [],
         "recommendation_note": (
             "자세 분석에서 나타난 불균형은 특정 근육이 약해지거나 과도하게 긴장하면서 생깁니다. "

@@ -203,7 +203,14 @@ function ScanPageInner() {
           ? Math.round(buf.reduce((a, b) => a + b, 0) / buf.length)
           : analysis.score;
       scoresBufferRef.current = [];
-      const result: CaptureResult = { score: avgScore, issues: analysis.issues };
+      // avgScore is a buffer average; analysis.issues is from the last single frame.
+      // If the last frame was unusually clean (all "good") but the average is low,
+      // the last-frame issues are misleading — replace them with a generic warning.
+      const consistentIssues =
+        avgScore < analysis.score - 10 && analysis.issues.every((i) => i.severity === "good")
+          ? [{ severity: "warning" as const, message: "스캔 동안 자세가 불안정했어요. 자세를 유지하고 다시 시도해 보세요." }]
+          : analysis.issues;
+      const result: CaptureResult = { score: avgScore, issues: consistentIssues };
 
       if (step === "countdown_front") {
         frontRef.current = result;
