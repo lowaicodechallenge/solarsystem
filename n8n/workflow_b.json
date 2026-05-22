@@ -1,0 +1,146 @@
+{
+  "name": "WorkflowB_주간리포트",
+  "nodes": [
+    {
+      "parameters": {
+        "url": "http://127.0.0.1:8000/api/pose/history/user_id",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        240,
+        -16
+      ],
+      "id": "5cb4176b-713f-4e93-ac5a-eb36a1d24d00",
+      "name": "get-pose-history"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst data = items[0].json;\n\nconst sessions = Array.isArray(data) ? data : [];\n\nlet frontScores = [];\nlet sideScores = [];\n\nfor (const s of sessions) {\n  if (s.exercise_type === 'front') frontScores.push(s.avg_score);\n  if (s.exercise_type === 'side') sideScores.push(s.avg_score);\n}\n\nconst avg = (arr) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;\n\nreturn [{\n  json: {\n    user_id: 'user_id',\n    period_days: 7,\n    posture_scores: {\n      front: Math.round(avg(frontScores)),\n      side: Math.round(avg(sideScores))\n    }\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        -16
+      ],
+      "id": "a8845fb0-5409-45ae-b110-59ae7f936716",
+      "name": "calc-posture-scores"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8000/api/report/weekly",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"user_id\": \"{{ $json.user_id }}\",\n  \"period_days\": {{ $json.period_days }},\n  \"posture_scores\": {{ JSON.stringify($json.posture_scores) }}\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        688,
+        -16
+      ],
+      "id": "047a3ca0-653d-459a-9508-68d879a4c12e",
+      "name": "weekly-report"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8000/api/report/send-email",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"email\": \"kimsy1073@gmail.com\",\n  \"stats\": {{ JSON.stringify($('weekly-report').first().json.stats) }},\n  \"report\": {{ JSON.stringify($('weekly-report').first().json.report) }},\n  \"generated_at\": \"{{ $('weekly-report').first().json.generated_at }}\"\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        912,
+        -16
+      ],
+      "id": "6625d6d3-34ba-45b1-8c87-796ea933fc48",
+      "name": "send-email"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtHour": 19
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        16,
+        -16
+      ],
+      "id": "e307a9d6-b152-4989-a84c-eb8c96dde3a2",
+      "name": "Schedule Trigger"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "get-pose-history": {
+      "main": [
+        [
+          {
+            "node": "calc-posture-scores",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "calc-posture-scores": {
+      "main": [
+        [
+          {
+            "node": "weekly-report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "weekly-report": {
+      "main": [
+        [
+          {
+            "node": "send-email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "get-pose-history",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "ff840b9d-7496-4716-93c0-274692cf9906",
+  "meta": {
+    "instanceId": "6437c26f67e54dd482bd8ad76c139ab15ebebf4cb36739b6d292b20d3bf0bec2"
+  },
+  "id": "C0ULGtBLT2pDnjoB",
+  "tags": []
+}

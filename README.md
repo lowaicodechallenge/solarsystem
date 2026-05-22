@@ -327,6 +327,76 @@ solarsystem/
             └── utils.ts            # 공통 유틸리티
 ```
 
+## n8n 워크플로우
+
+### 실행 방법
+
+1. n8n 설치 및 실행
+```bash
+npx n8n
+```
+→ http://localhost:5678 접속
+
+2. 워크플로우 Import
+   - n8n 좌측 메뉴 → Workflows → **Import from file**
+   - `n8n/workflow_a.json`, `n8n/workflow_b.json` 각각 Import
+
+3. 워크플로우 Publish (우측 상단 Publish 버튼)
+
+4. `frontend/.env.local`에 n8n 웹훅 URL 추가
+```env
+NEXT_PUBLIC_N8N_WEBHOOK_URL=http://localhost:5678/webhook/solmate/document-upload
+```
+
+### Workflow A — 문서 업로드 자동화 파이프라인
+
+프론트에서 인바디 문서를 업로드하면 n8n이 자동으로 순차 실행합니다.
+
+```
+Webhook (문서 수신)
+    │
+    ▼
+process-document (OCR + AI 파싱)
+    │
+    ▼
+Respond to Webhook (프론트에 즉시 응답)
+    │                     ← 이후 백그라운드 처리
+    ▼
+recommend (AI 운동 추천)
+    │
+    ▼
+nfa-videos (국민체력100 영상 추천)
+    │
+    ▼
+IF (google_token 있으면)
+    ├─ True → calendar/schedule (Google 캘린더 자동 등록)
+    └─ False → 종료
+```
+
+### Workflow B — 주간 리포트 자동 이메일 발송
+
+매주 월요일 오전 8시(KST)에 자동으로 주간 리포트를 생성하고 이메일로 발송합니다.
+
+```
+Schedule Trigger (매주 월요일 08:00 KST)
+    │
+    ▼
+get-pose-history (운동 기록 조회)
+    │
+    ▼
+calc-posture-scores (자세 점수 계산)
+    │
+    ▼
+weekly-report (주간 리포트 생성)
+    │
+    ▼
+send-email (HTML 리포트 이메일 발송)
+```
+
+> **참고**: Workflow B 노드2 URL과 노드3의 `user_id`는 브라우저 localStorage의 `fitai_user_id` 값으로 교체 후 사용하세요. 
+> 이메일 발송은 `backend/.env`의 SMTP 설정이 필요합니다.
+> n8n 타임존이 미국 동부 기준이라 내부적으로 일요일 19:00 EDT로 설정했습니다. (매주 월요일 08:00 KST)
+
 ## 아키텍처 흐름
 
 ```
